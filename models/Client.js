@@ -7,6 +7,11 @@ const clientSchema = new mongoose.Schema(
     name: { type: String, required: [true, 'Client name is required'], trim: true },
     nameKey: { type: String, unique: true }, // case/space-insensitive key used for matching
     priority: { type: Boolean, default: false },
+    salesLead: { type: String, trim: true },
+    preference: { type: String, trim: true }, // e.g. Client, Bidding, Past Client, Closed
+    // Awarded projects per year that are NOT tracked as Won estimations in this app (e.g. from an imported sheet).
+    // Shown count for a year = awardedBase[year] + Won estimations in this app for that year.
+    awardedBase: { type: Map, of: Number, default: {} },
   },
   { timestamps: true }
 );

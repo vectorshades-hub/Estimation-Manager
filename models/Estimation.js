@@ -41,6 +41,7 @@ const estimationSchema = new mongoose.Schema(
     contactEmail: { type: String, trim: true, lowercase: true },
     dueDate: { type: Date },
     status: { type: String, enum: STATUSES, default: 'Received' },
+    wonAt: { type: Date }, // set when status becomes Won (used for awarded-per-year counts)
     notes: { type: String, trim: true },
 
     // Submission details (used in the reply email)
@@ -52,6 +53,13 @@ const estimationSchema = new mongoose.Schema(
     quotedTonnage: { type: Number, min: 0 }, // blank = use calculated tonnage
     assumptions: { type: String, trim: true, default: 'Steel design completed by client' },
     remark: { type: String, trim: true, default: 'Nil' },
+
+    // Proposal (Word) — blank values fall back to the template / today's date
+    proposalDate: { type: Date },
+    quoteNo: { type: String, trim: true },
+    submittalWeeks: { type: Number, min: 0, default: 2 },
+    signerName: { type: String, trim: true },
+    signerTitle: { type: String, trim: true },
 
     // SharePoint folder links for the submission documents
     links: [linkSchema],
@@ -82,6 +90,8 @@ const estimationSchema = new mongoose.Schema(
 );
 
 estimationSchema.pre('validate', function () {
+  if (this.status === 'Won' && !this.wonAt) this.wonAt = new Date();
+  if (this.status !== 'Won' && this.wonAt) this.wonAt = undefined;
   this.links = (this.links || []).filter(l => l.url || l.label);
   this.items = normalizeItems(this.items, this.sheets.length);
   const c = compute({

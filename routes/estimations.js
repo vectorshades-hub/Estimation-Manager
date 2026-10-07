@@ -15,6 +15,7 @@ async function withFlags(docs) {
 }
 const { buildWorkbook } = require('../lib/excel');
 const { buildExport } = require('../lib/exportList');
+const { buildProposal, proposalFileName } = require('../lib/proposal');
 
 const router = express.Router();
 
@@ -135,6 +136,22 @@ router.get('/:id/excel', async (req, res, next) => {
     res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
     await wb.xlsx.write(res);
     res.end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Download the proposal as a Word document
+router.get('/:id/proposal', async (req, res, next) => {
+  try {
+    const doc = await Estimation.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    const est = doc.toObject({ flattenMaps: true });
+    const buf = await buildProposal(est);
+    const name = proposalFileName(est);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^ -~]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.send(buf);
   } catch (err) {
     next(err);
   }

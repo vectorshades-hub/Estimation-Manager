@@ -100,6 +100,7 @@ td.actions-cell { text-align: right; }
 .card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .card-head h3 { margin: 0; }
 .hint { color: var(--muted); font-size: 12px; }
+.sub-head { margin: 18px 0 10px !important; padding-top: 14px; border-top: 1px solid var(--border); }
 
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
 .fields .wide { grid-column: span 2; }
@@ -189,3 +190,27 @@ table.desc { width: 100%; border-collapse: collapse; }
 .list tbody tr.row-prio { background: #fffbea; }
 .client-name { border: 1px solid transparent; background: transparent; padding: 5px 7px; border-radius: 4px; font-size: 14px; width: 100%; max-width: 480px; }
 .client-name:hover { border-color: var(--border); background: #fff; }
+
+/* ---------- Clients table ---------- */
+.clients-table td { padding: 4px 8px; }
+.clients-table tfoot th { background: #f1f4f8; padding: 10px 12px; text-align: left; }
+.clients-table tfoot th.num { text-align: right; }
+.cell-edit { border: 1px solid transparent; background: transparent; padding: 5px 7px; border-radius: 4px; font-size: 14px; font-family: inherit; color: var(--text); }
+.cell-edit:hover { border-color: var(--border); background: #fff; }
+.cell-edit:focus { background: #fff; }
+.cell-edit.name { width: 100%; min-width: 240px; }
+.cell-edit.lead { width: 130px; }
+.cell-edit.yr { width: 64px; text-align: right; -moz-appearance: textfield; }
+.cell-edit.yr::-webkit-inner-spin-button { -webkit-appearance: none; }
+.cell-edit.yr:not(.has) { color: #9aa3b2; }
+select.cell-edit.pref { padding: 4px 6px; border-radius: 999px; font-size: 12px; font-weight: 600; border-color: transparent; cursor: pointer; }
+.pref-client { background: #dff5e6; color: #1b7a3d; }
+.pref-bidding { background: #e7eefb; color: #1f5fbf; }
+.pref-past-client { background: #fff4dc; color: #a26800; }
+.pref-closed { background: #eceff3; color: #555e6e; }
+.won-dot { color: #2e9e55; font-size: 9px; margin-left: 2px; vertical-align: super; }
+.total-cell { position: relative; min-width: 110px; }
+.total-cell .bar { position: absolute; left: 8px; top: 9px; bottom: 9px; background: #c9ecd3; border-radius: 3px; max-width: calc(100% - 16px); }
+.total-cell strong { position: relative; padding-right: 4px; }
+.add-client select { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+#newClientLead { min-width: 140px !important; }

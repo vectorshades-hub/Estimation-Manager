@@ -81,6 +81,7 @@ async function loadList() {
           <a class="btn small" href="#/edit/${e._id}">Edit</a>
           ${e.links?.find(l => l.url) ? `<a class="btn small" href="${esc(e.links.find(l => l.url).url)}" target="_blank" rel="noopener" title="Open SharePoint folder">Folder</a>` : ''}
           <a class="btn small" href="${API}/${e._id}/excel">Excel</a>
+          <a class="btn small" href="${API}/${e._id}/proposal" title="Download proposal (Word)">Proposal</a>
           <button class="btn small danger" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}">Delete</button>
         </td>
       </tr>`;
@@ -146,6 +147,7 @@ function blankEstimation(jobNo) {
     deliverables: ['Shop Drawings', 'Erection Drawings', 'CNC Files', 'Other files'],
     coordinationNeeded: '', durationWeeks: null, quotedTonnage: null,
     assumptions: 'Steel design completed by client', remark: 'Nil',
+    proposalDate: null, quoteNo: '', submittalWeeks: 2, signerName: '', signerTitle: '',
     links: [{ label: 'SharePoint folder', url: '' }],
   };
 }
@@ -153,7 +155,7 @@ function blankEstimation(jobNo) {
 let clientPrio = new Set(); // nameKeys of priority clients
 
 async function loadClientOptions() {
-  const clients = await api(CLIENTS_API).catch(() => []);
+  const { clients } = await api(CLIENTS_API).catch(() => ({ clients: [] }));
   clientPrio = new Set(clients.filter(c => c.priority).map(c => c.nameKey));
   $('#clientOptions').innerHTML = clients
     .map(c => `<option value="${esc(c.name)}">${c.priority ? '★ Priority client' : ''}</option>`)
@@ -198,7 +200,14 @@ function fillForm() {
   $('#editorTitle').textContent = cur._id ? `${cur.jobNo} ${cur.projectName}` : 'New Estimation';
   $('#excelBtn').disabled = !cur._id;
   $('#emailBtn').disabled = !cur._id;
+  $('#proposalBtn').disabled = !cur._id;
+  updateQuotePlaceholder();
   updateDueInfo();
+}
+
+function updateQuotePlaceholder() {
+  const [y, m, d] = (toInputDate(cur.proposalDate) || today()).split('-');
+  $('#quoteNo').placeholder = `${m}${d}${y}-01 (auto)`;
 }
 
 function updateDueInfo() {
@@ -355,6 +364,7 @@ form.addEventListener('input', ev => {
     else cur[el.name] = el.value;
     if (el.name === 'dueDate' || el.name === 'status') updateDueInfo();
     if (el.name === 'clientName') updateClientFlags();
+    if (el.name === 'proposalDate') updateQuotePlaceholder();
     return;
   }
   updateComputed();
@@ -433,6 +443,7 @@ async function save() {
     $('#editorTitle').textContent = `${cur.jobNo} ${cur.projectName}`;
     $('#excelBtn').disabled = false;
     $('#emailBtn').disabled = false;
+    $('#proposalBtn').disabled = false;
     loadClientOptions().then(() => updateClientFlags()); // a newly typed client is now in the list
     if (!cur.links?.length) cur.links = [{ label: 'SharePoint folder', url: '' }];
     renderLinks();
@@ -446,6 +457,10 @@ async function save() {
 }
 
 $('#saveBtn').onclick = save;
+$('#proposalBtn').onclick = async () => {
+  if (dirty && !(await save())) return;
+  location.href = `${API}/${cur._id}/proposal`;
+};
 $('#excelBtn').onclick = async () => {
   if (dirty && !(await save())) return;
   location.href = `${API}/${cur._id}/excel`;
@@ -527,52 +542,107 @@ $('#emailMarkBtn').onclick = async () => {
 // =====================================================================
 // CLIENTS VIEW
 // =====================================================================
+let clientData = { clients: [], years: [], preferences: [] };
+
+const prefClass = p => 'pref-' + String(p || 'none').toLowerCase().replace(/[^a-z]+/g, '-');
+const fillSelect = (sel, values, first) => {
+  const keep = sel.value;
+  sel.innerHTML = (first ? `<option value="">${first}</option>` : '') + values.map(v => `<option>${esc(v)}</option>`).join('');
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+};
+
 async function loadClients() {
   $('#lvHours').textContent = LESS_VALUE_HOURS;
   const q = $('#clientSearch').value.trim();
-  let list = await api(`${CLIENTS_API}${q ? '?q=' + encodeURIComponent(q) : ''}`);
-  const f = $('#clientFilter').value;
+  clientData = await api(`${CLIENTS_API}${q ? '?q=' + encodeURIComponent(q) : ''}`);
+  const leads = [...new Set(clientData.clients.map(c => c.salesLead).filter(Boolean))].sort();
+  fillSelect($('#prefFilter'), clientData.preferences, 'All preferences');
+  fillSelect($('#leadFilter'), leads, 'All sales leads');
+  fillSelect($('#newClientPref'), ['', ...clientData.preferences]);
+  $('#newClientPref').options[0].textContent = 'Client preference';
+  $('#leadOptions').innerHTML = leads.map(l => `<option value="${esc(l)}">`).join('');
+  renderClients();
+}
+
+function renderClients() {
+  const { years, preferences } = clientData;
+  let list = clientData.clients;
+  const f = $('#clientFilter').value, pf = $('#prefFilter').value, lf = $('#leadFilter').value;
   if (f) list = list.filter(c => c.priority === (f === '1'));
+  if (pf) list = list.filter(c => (c.preference || '') === pf);
+  if (lf) list = list.filter(c => (c.salesLead || '') === lf);
+
+  $('#clientHead').innerHTML = `<tr>
+      <th style="width:110px">Priority</th><th>Client Names</th><th>Sales Lead</th><th>Client Preference</th>
+      ${years.map(y => `<th class="num">${y}<div class="sub">Projects awarded</div></th>`).join('')}
+      <th class="num">Total Awarded</th><th class="num">Estimations</th><th></th></tr>`;
+
+  const maxTotal = Math.max(1, ...list.map(c => c.totalAwarded));
   $('#clientRows').innerHTML = list.map(c => `<tr class="${c.priority ? 'row-prio' : ''}">
       <td><button class="btn small ${c.priority ? 'prio-on' : 'prio-off'}" data-prio="${c.priority ? 0 : 1}" data-id="${c._id}"
         title="${c.priority ? 'Click to remove priority' : 'Click to mark as priority'}">${c.priority ? '★ Priority' : '☆ Mark'}</button></td>
-      <td><input class="client-name" data-rename="${c._id}" value="${esc(c.name)}" data-orig="${esc(c.name)}" /></td>
+      <td><input class="cell-edit name" data-id="${c._id}" data-field="name" value="${esc(c.name)}" data-orig="${esc(c.name)}" /></td>
+      <td><input class="cell-edit lead" data-id="${c._id}" data-field="salesLead" list="leadOptions" value="${esc(c.salesLead)}" data-orig="${esc(c.salesLead)}" placeholder="—" /></td>
+      <td><select class="cell-edit pref ${prefClass(c.preference)}" data-id="${c._id}" data-field="preference">
+          <option value="">—</option>${preferences.map(p => `<option ${p === c.preference ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select></td>
+      ${years.map(y => {
+        const v = c.awarded[y] || 0, w = c.appWins[y] || 0;
+        return `<td class="num"><input type="number" min="0" step="1" class="cell-edit yr ${v ? 'has' : ''}" data-id="${c._id}" data-year="${y}"
+          value="${v}" data-orig="${v}" title="${w ? `Includes ${w} project(s) marked Won in this app` : 'Awarded projects'}" />${w ? `<span class="won-dot" title="${w} won in app">●</span>` : ''}</td>`;
+      }).join('')}
+      <td class="num total-cell"><span class="bar" style="width:${Math.round((c.totalAwarded / maxTotal) * 100)}%"></span><strong>${c.totalAwarded}</strong></td>
       <td class="num">${c.estimations}</td>
       <td class="actions-cell"><button class="btn small danger" data-del-client="${c._id}" data-name="${esc(c.name)}">Delete</button></td>
     </tr>`).join('');
+
+  const sum = y => list.reduce((a, c) => a + (c.awarded[y] || 0), 0);
+  $('#clientFoot').innerHTML = list.length ? `<tr><th colspan="4">Total (${list.length} clients)</th>
+      ${years.map(y => `<th class="num">${sum(y)}</th>`).join('')}
+      <th class="num">${list.reduce((a, c) => a + c.totalAwarded, 0)}</th><th class="num">${list.reduce((a, c) => a + c.estimations, 0)}</th><th></th></tr>` : '';
   $('#clientEmpty').hidden = list.length > 0;
+}
+
+async function updateClient(id, body, msg) {
+  try {
+    await api(`${CLIENTS_API}/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (msg) $('#clientMsg').textContent = msg;
+    await loadClients();
+  } catch (err) {
+    alert(err.message);
+    loadClients();
+  }
 }
 
 $('#clientRows').addEventListener('click', async ev => {
   const d = ev.target.dataset;
-  try {
-    if (d.prio) {
-      await api(`${CLIENTS_API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ priority: d.prio === '1' }) });
-      loadClients();
-    } else if (d.delClient && confirm(`Delete client "${d.name}" from the list? (Estimations are not affected)`)) {
-      await api(`${CLIENTS_API}/${d.delClient}`, { method: 'DELETE' });
-      loadClients();
-    }
-  } catch (err) { alert(err.message); }
+  if (d.prio) updateClient(d.id, { priority: d.prio === '1' });
+  else if (d.delClient && confirm(`Delete client "${d.name}" from the list? (Estimations are not affected)`)) {
+    try { await api(`${CLIENTS_API}/${d.delClient}`, { method: 'DELETE' }); loadClients(); } catch (err) { alert(err.message); }
+  }
 });
 
-$('#clientRows').addEventListener('change', async ev => {
-  const id = ev.target.dataset.rename;
-  if (!id) return;
-  const name = ev.target.value.trim();
-  if (!name || name === ev.target.dataset.orig) { ev.target.value = ev.target.dataset.orig; return; }
-  try {
-    await api(`${CLIENTS_API}/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
-    ev.target.dataset.orig = name;
-    $('#clientMsg').textContent = `Renamed to "${name}"`;
-  } catch (err) { alert(err.message); ev.target.value = ev.target.dataset.orig; }
+$('#clientRows').addEventListener('change', ev => {
+  const el = ev.target, d = el.dataset;
+  if (!d.id) return;
+  if (d.year) {
+    if (el.value === d.orig) return;
+    return updateClient(d.id, { awarded: { [d.year]: Math.max(0, parseInt(el.value, 10) || 0) } }, `Awarded ${d.year} updated`);
+  }
+  const value = el.value.trim();
+  if (d.field === 'name' && !value) { el.value = d.orig; return; }
+  if (el.tagName === 'INPUT' && value === d.orig) return;
+  updateClient(d.id, { [d.field]: value }, 'Saved');
 });
+$('#clientRows').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.matches('input.cell-edit')) ev.target.blur(); });
 
 $('#addClientBtn').onclick = async () => {
   const name = $('#newClientName').value.trim();
   if (!name) return $('#newClientName').focus();
   try {
-    await api(CLIENTS_API, { method: 'POST', body: JSON.stringify({ name, priority: $('#newClientPriority').checked }) });
+    await api(CLIENTS_API, { method: 'POST', body: JSON.stringify({
+      name, priority: $('#newClientPriority').checked, salesLead: $('#newClientLead').value.trim(), preference: $('#newClientPref').value,
+    }) });
     $('#newClientName').value = '';
     $('#newClientPriority').checked = false;
     $('#clientMsg').textContent = `Added "${name}"`;
@@ -591,7 +661,10 @@ $('#importBtn').onclick = async () => {
     });
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || 'Import failed');
-    $('#importMsg').textContent = `Imported: ${r.added} added, ${r.updated} priority updated, ${r.skipped} skipped (already listed / blank).`;
+    const cols = [r.columns.salesLead && 'Sales Lead', r.columns.preference && 'Client preference',
+      r.columns.years.length && `awarded ${r.columns.years.join(', ')}`, r.columns.priority && 'Priority'].filter(Boolean);
+    $('#importMsg').textContent = `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} unchanged/skipped.` +
+      (cols.length ? ` Columns read: ${cols.join(', ')}.` : '');
     $('#importFile').value = '';
     loadClients();
   } catch (err) { $('#importMsg').textContent = ''; alert(err.message); }
@@ -599,7 +672,7 @@ $('#importBtn').onclick = async () => {
 
 let clientSearchTimer;
 $('#clientSearch').oninput = () => { clearTimeout(clientSearchTimer); clientSearchTimer = setTimeout(loadClients, 250); };
-$('#clientFilter').onchange = loadClients;
+['#clientFilter', '#prefFilter', '#leadFilter'].forEach(sel => { $(sel).onchange = renderClients; });
 
 // =====================================================================
 // ROUTER

@@ -70,6 +70,7 @@
       <span class="spacer"></span>
       <span id="saveMsg" class="save-msg"></span>
       <button class="btn" id="excelBtn" type="button">Download Excel</button>
+      <button class="btn" id="proposalBtn" type="button">📄 Proposal (Word)</button>
       <button class="btn" id="emailBtn" type="button">✉ Reply Email</button>
       <button class="btn primary" id="saveBtn" type="button">Save</button>
     </div>
@@ -127,6 +128,17 @@
           <label class="wide">Remark<input name="remark" /></label>
         </div>
         <p class="hint">Exclusions are taken from the “Specific Exclusions” section below.</p>
+
+        <h4 class="sub-head">Proposal (Word)</h4>
+        <div class="fields">
+          <label>Proposal date<input name="proposalDate" type="date" /></label>
+          <label>Quote #<input name="quoteNo" id="quoteNo" placeholder="auto" /></label>
+          <label>Schedule of submittals (weeks)<input name="submittalWeeks" type="number" min="0" step="1" /></label>
+          <label>Signed by (name)<input name="signerName" placeholder="Lee Luck" /></label>
+          <label>Signed by (title)<input name="signerTitle" placeholder="Lead Estimator" /></label>
+        </div>
+        <p class="hint">Blank proposal date = today. The detailing cost ($) is left empty in the Word file to fill in manually.
+          Scope of Work is taken from the Struct. / Misc. Description lists.</p>
       </section>
 
       <section class="card">
@@ -202,8 +214,9 @@
     <section class="card">
       <div class="card-head"><h3>Import Client List</h3><span class="spacer"></span>
         <a class="btn small" href="/api/clients/template">Download template</a></div>
-      <p class="hint">Excel (.xlsx) or CSV. The first column headed “Client” / “Name” is used. An optional “Priority” column (Yes / No) sets priority clients.
-        Existing clients are kept; duplicates are skipped.</p>
+      <p class="hint">Excel (.xlsx) or CSV with columns like <em>Client Names, Sales Lead, Client preferance, 2025 No of projects awarded, 2026 No of projects awarded, Total Awarded Projects</em>.
+        Year columns are detected automatically. An optional “Priority” column (Yes / No) sets priority clients. Existing clients are updated, new ones added.
+        Awarded counts in the file are taken as correct at the time of import; projects marked <strong>Won</strong> afterwards are added automatically.</p>
       <div class="import-row">
         <input type="file" id="importFile" accept=".xlsx,.csv" />
         <label class="check"><input type="checkbox" id="importPriority" /> Mark all imported clients as priority</label>
@@ -214,21 +227,30 @@
 
     <section class="card">
       <div class="card-head"><h3>Clients</h3>
-        <span class="hint">★ = priority client. Non-priority clients with less than <span id="lvHours"></span> hrs are marked “Less value job”.</span></div>
+        <span class="hint">★ = priority client. Non-priority clients with less than <span id="lvHours"></span> hrs are marked “Less value job”.
+          Awarded counts update automatically when an estimation is marked Won.</span>
+        <span class="spacer"></span>
+        <a class="btn export-btn" href="/api/clients/export">⬇ Export to Excel</a></div>
       <div class="toolbar">
         <input id="clientSearch" type="search" placeholder="Search clients…" />
         <select id="clientFilter"><option value="">All clients</option><option value="1">Priority only</option><option value="0">Non-priority only</option></select>
+        <select id="prefFilter"><option value="">All preferences</option></select>
+        <select id="leadFilter"><option value="">All sales leads</option></select>
       </div>
       <div class="add-client">
         <input id="newClientName" placeholder="Add a client name" />
+        <input id="newClientLead" placeholder="Sales lead" list="leadOptions" />
+        <select id="newClientPref"></select>
         <label class="check"><input type="checkbox" id="newClientPriority" /> Priority</label>
         <button type="button" class="btn" id="addClientBtn">+ Add</button>
         <span id="clientMsg" class="save-msg"></span>
       </div>
+      <datalist id="leadOptions"></datalist>
       <div class="table-wrap">
-        <table class="list">
-          <thead><tr><th style="width:110px">Priority</th><th>Client Name</th><th class="num">Estimations</th><th></th></tr></thead>
+        <table class="list clients-table">
+          <thead id="clientHead"></thead>
           <tbody id="clientRows"></tbody>
+          <tfoot id="clientFoot"></tfoot>
         </table>
         <p id="clientEmpty" class="empty" hidden>No clients yet. Import an Excel file or add one above.</p>
       </div>
