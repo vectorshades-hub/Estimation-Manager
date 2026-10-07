@@ -1,0 +1,1384 @@
+[
+ {
+  "_id": "6ac531a7468688240217cd54",
+  "nameKey": "test client",
+  "__v": 0,
+  "createdAt": "2026-10-06T17:36:39.182Z",
+  "name": "Test Client",
+  "priority": false,
+  "updatedAt": "2026-10-07T17:00:28.796Z"
+ },
+ {
+  "_id": "6ac531a7468688240217cd55",
+  "nameKey": "hhhh",
+  "__v": 0,
+  "createdAt": "2026-10-06T17:36:39.188Z",
+  "name": "hhhh",
+  "priority": false,
+  "updatedAt": "2026-10-07T17:00:28.801Z"
+ },
+ {
+  "_id": "6ac531a7468688240217cd56",
+  "nameKey": "ttt",
+  "__v": 0,
+  "createdAt": "2026-10-06T17:36:39.190Z",
+  "name": "ttt",
+  "priority": false,
+  "updatedAt": "2026-10-07T17:00:28.802Z"
+ },
+ {
+  "_id": "6ac6351594c94fe66add89de",
+  "name": "A & E Steel Inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 4,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Closed",
+  "nameKey": "a & e steel inc",
+  "createdAt": "2026-10-07T12:03:33.273Z",
+  "updatedAt": "2026-10-07T12:21:42.925Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89e0",
+  "name": "Advantage Steel and Construction",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Bidding",
+  "nameKey": "advantage steel and construction",
+  "createdAt": "2026-10-07T12:03:33.274Z",
+  "updatedAt": "2026-10-07T12:03:33.274Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89e2",
+  "name": "AMFAB Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "amfab steel",
+  "createdAt": "2026-10-07T12:03:33.275Z",
+  "updatedAt": "2026-10-07T12:03:33.275Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89e4",
+  "name": "BA Steel, LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 5,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "preference": "Past Client",
+  "nameKey": "ba steel, llc",
+  "createdAt": "2026-10-07T12:03:33.276Z",
+  "updatedAt": "2026-10-07T12:03:33.276Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89e6",
+  "name": "Baltimore Steel Erectors",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Bidding",
+  "nameKey": "baltimore steel erectors",
+  "createdAt": "2026-10-07T12:03:33.277Z",
+  "updatedAt": "2026-10-07T12:03:33.277Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89e8",
+  "name": "Bannon Construction, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Past Client",
+  "nameKey": "bannon construction, inc.",
+  "createdAt": "2026-10-07T12:03:33.277Z",
+  "updatedAt": "2026-10-07T12:03:33.277Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89ea",
+  "name": "Benchmark Fabricated Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Past Client",
+  "nameKey": "benchmark fabricated steel",
+  "createdAt": "2026-10-07T12:03:33.278Z",
+  "updatedAt": "2026-10-07T12:03:33.278Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89ec",
+  "name": "Boltco of South Florida Inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "boltco of south florida inc",
+  "createdAt": "2026-10-07T12:03:33.279Z",
+  "updatedAt": "2026-10-07T12:03:33.279Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89ee",
+  "name": "Burkes Mechanical",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 4
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "burkes mechanical",
+  "createdAt": "2026-10-07T12:03:33.280Z",
+  "updatedAt": "2026-10-07T12:03:33.280Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89f0",
+  "name": "Capital Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "preference": "Past Client",
+  "nameKey": "capital steel",
+  "createdAt": "2026-10-07T12:03:33.281Z",
+  "updatedAt": "2026-10-07T12:03:33.281Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89f2",
+  "name": "Chesapeake Bay Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 3,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "chesapeake bay steel",
+  "createdAt": "2026-10-07T12:03:33.282Z",
+  "updatedAt": "2026-10-07T12:03:33.282Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89f4",
+  "name": "CM Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "cm fabrication",
+  "createdAt": "2026-10-07T12:03:33.283Z",
+  "updatedAt": "2026-10-07T12:03:33.283Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89f6",
+  "name": "Cross Town D & B",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "cross town d & b",
+  "createdAt": "2026-10-07T12:03:33.283Z",
+  "updatedAt": "2026-10-07T12:03:33.283Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89f8",
+  "name": "Custom Fabricators & Repairs INC.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 4
+  },
+  "salesLead": "Lee",
+  "preference": "Client",
+  "nameKey": "custom fabricators & repairs inc.",
+  "createdAt": "2026-10-07T12:03:33.284Z",
+  "updatedAt": "2026-10-07T12:03:33.284Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89fa",
+  "name": "Custom Metal Fabrication, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 3,
+   "2026": 0
+  },
+  "nameKey": "custom metal fabrication, inc.",
+  "createdAt": "2026-10-07T12:03:33.285Z",
+  "updatedAt": "2026-10-07T12:03:33.285Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89fc",
+  "name": "D&D Mechanical, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Past Client",
+  "nameKey": "d&d mechanical, inc.",
+  "createdAt": "2026-10-07T12:03:33.286Z",
+  "updatedAt": "2026-10-07T12:03:33.286Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add89fe",
+  "name": "DDM Steel Construction LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 7,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "ddm steel construction llc",
+  "createdAt": "2026-10-07T12:03:33.287Z",
+  "updatedAt": "2026-10-07T12:03:33.287Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a00",
+  "name": "Dominion Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "dominion steel",
+  "createdAt": "2026-10-07T12:03:33.288Z",
+  "updatedAt": "2026-10-07T12:03:33.288Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a02",
+  "name": "E & H Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "preference": "Past Client",
+  "nameKey": "e & h steel",
+  "createdAt": "2026-10-07T12:03:33.289Z",
+  "updatedAt": "2026-10-07T12:03:33.289Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a04",
+  "name": "Elevated Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "elevated steel",
+  "createdAt": "2026-10-07T12:03:33.289Z",
+  "updatedAt": "2026-10-07T12:03:33.289Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a06",
+  "name": "Fabricated Products of Tampa",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 3
+  },
+  "preference": "past client",
+  "nameKey": "fabricated products of tampa",
+  "createdAt": "2026-10-07T12:03:33.290Z",
+  "updatedAt": "2026-10-07T12:03:33.290Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a08",
+  "name": "Gem City Steel Supply",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "gem city steel supply",
+  "createdAt": "2026-10-07T12:03:33.291Z",
+  "updatedAt": "2026-10-07T12:03:33.291Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a0a",
+  "name": "Geocal Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 3
+  },
+  "salesLead": "Daniel",
+  "nameKey": "geocal steel",
+  "createdAt": "2026-10-07T12:03:33.292Z",
+  "updatedAt": "2026-10-07T12:03:33.292Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a0c",
+  "name": "GP Metal Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 1
+  },
+  "nameKey": "gp metal fabrication",
+  "createdAt": "2026-10-07T12:03:33.293Z",
+  "updatedAt": "2026-10-07T12:03:33.293Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a0e",
+  "name": "GPLA",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 5
+  },
+  "salesLead": "Daniel",
+  "preference": "Client",
+  "nameKey": "gpla",
+  "createdAt": "2026-10-07T12:03:33.293Z",
+  "updatedAt": "2026-10-07T12:03:33.293Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a10",
+  "name": "GS Metal Supply",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "nameKey": "gs metal supply",
+  "createdAt": "2026-10-07T12:03:33.294Z",
+  "updatedAt": "2026-10-07T12:03:33.294Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a12",
+  "name": "Guardian Construction",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "guardian construction",
+  "createdAt": "2026-10-07T12:03:33.295Z",
+  "updatedAt": "2026-10-07T12:03:33.295Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a14",
+  "name": "H & R",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "h & r",
+  "createdAt": "2026-10-07T12:03:33.295Z",
+  "updatedAt": "2026-10-07T12:03:33.295Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a16",
+  "name": "Hallmark Iron Works",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 4
+  },
+  "salesLead": "Daniel",
+  "nameKey": "hallmark iron works",
+  "createdAt": "2026-10-07T12:03:33.296Z",
+  "updatedAt": "2026-10-07T12:03:33.296Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a18",
+  "name": "Hambric Steel & Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "hambric steel & fabrication",
+  "createdAt": "2026-10-07T12:03:33.297Z",
+  "updatedAt": "2026-10-07T12:03:33.297Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a1a",
+  "name": "Hamilton iron",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "hamilton iron",
+  "createdAt": "2026-10-07T12:03:33.298Z",
+  "updatedAt": "2026-10-07T12:03:33.298Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a1c",
+  "name": "Hanley Steel, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "hanley steel, inc.",
+  "createdAt": "2026-10-07T12:03:33.298Z",
+  "updatedAt": "2026-10-07T12:03:33.298Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a1e",
+  "name": "Hendersonfab",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Lee",
+  "nameKey": "hendersonfab",
+  "createdAt": "2026-10-07T12:03:33.299Z",
+  "updatedAt": "2026-10-07T12:03:33.299Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a20",
+  "name": "HG Metals",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "hg metals",
+  "createdAt": "2026-10-07T12:03:33.300Z",
+  "updatedAt": "2026-10-07T12:03:33.300Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a22",
+  "name": "Hirsch Construction Group",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "hirsch construction group",
+  "createdAt": "2026-10-07T12:03:33.301Z",
+  "updatedAt": "2026-10-07T12:03:33.301Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a24",
+  "name": "Holley Steel, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 4,
+   "2026": 10
+  },
+  "salesLead": "Daniel",
+  "nameKey": "holley steel, inc.",
+  "createdAt": "2026-10-07T12:03:33.301Z",
+  "updatedAt": "2026-10-07T12:03:33.301Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a26",
+  "name": "Howard Structural Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "howard structural steel",
+  "createdAt": "2026-10-07T12:03:33.302Z",
+  "updatedAt": "2026-10-07T12:03:33.302Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a28",
+  "name": "I E Ironworx",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "nameKey": "i e ironworx",
+  "createdAt": "2026-10-07T12:03:33.303Z",
+  "updatedAt": "2026-10-07T12:03:33.303Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a2a",
+  "name": "Industrial Resources",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "industrial resources",
+  "createdAt": "2026-10-07T12:03:33.304Z",
+  "updatedAt": "2026-10-07T12:03:33.304Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a2c",
+  "name": "JEM Group LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "jem group llc",
+  "createdAt": "2026-10-07T12:03:33.304Z",
+  "updatedAt": "2026-10-07T12:03:33.304Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a2e",
+  "name": "Jonquil Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 8
+  },
+  "salesLead": "Daniel",
+  "nameKey": "jonquil steel",
+  "createdAt": "2026-10-07T12:03:33.305Z",
+  "updatedAt": "2026-10-07T12:03:33.305Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a30",
+  "name": "JRK Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "jrk steel",
+  "createdAt": "2026-10-07T12:03:33.306Z",
+  "updatedAt": "2026-10-07T12:03:33.306Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a32",
+  "name": "Kelly Iron Works",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "kelly iron works",
+  "createdAt": "2026-10-07T12:03:33.307Z",
+  "updatedAt": "2026-10-07T12:03:33.307Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a34",
+  "name": "Kenric Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "kenric steel",
+  "createdAt": "2026-10-07T12:03:33.307Z",
+  "updatedAt": "2026-10-07T12:03:33.307Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a36",
+  "name": "Lafayette Structural Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 11,
+   "2026": 4
+  },
+  "nameKey": "lafayette structural steel",
+  "createdAt": "2026-10-07T12:03:33.308Z",
+  "updatedAt": "2026-10-07T12:03:33.308Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a38",
+  "name": "Lawton welding Co Inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "lawton welding co inc",
+  "createdAt": "2026-10-07T12:03:33.309Z",
+  "updatedAt": "2026-10-07T12:03:33.309Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a3a",
+  "name": "Lear West Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 1
+  },
+  "salesLead": "Daniel",
+  "nameKey": "lear west fabrication",
+  "createdAt": "2026-10-07T12:03:33.309Z",
+  "updatedAt": "2026-10-07T12:03:33.309Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a3c",
+  "name": "Liberty steel inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "liberty steel inc",
+  "createdAt": "2026-10-07T12:03:33.310Z",
+  "updatedAt": "2026-10-07T12:03:33.310Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a3e",
+  "name": "Littell Steel Company",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "littell steel company",
+  "createdAt": "2026-10-07T12:03:33.311Z",
+  "updatedAt": "2026-10-07T12:03:33.311Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a40",
+  "name": "Littell Steel Company Company",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "littell steel company company",
+  "createdAt": "2026-10-07T12:03:33.312Z",
+  "updatedAt": "2026-10-07T12:03:33.312Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a42",
+  "name": "LLS",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "lls",
+  "createdAt": "2026-10-07T12:03:33.312Z",
+  "updatedAt": "2026-10-07T12:03:33.312Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a44",
+  "name": "MacAljon/SCL, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 9,
+   "2026": 4
+  },
+  "salesLead": "Daniel",
+  "nameKey": "macaljon/scl, inc.",
+  "createdAt": "2026-10-07T12:03:33.313Z",
+  "updatedAt": "2026-10-07T12:03:33.313Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a46",
+  "name": "Merrill Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "merrill steel",
+  "createdAt": "2026-10-07T12:03:33.314Z",
+  "updatedAt": "2026-10-07T12:03:33.314Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a48",
+  "name": "Midstate steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "midstate steel",
+  "createdAt": "2026-10-07T12:03:33.314Z",
+  "updatedAt": "2026-10-07T12:03:33.314Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a4a",
+  "name": "Morrow Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 45,
+   "2026": 19
+  },
+  "nameKey": "morrow steel",
+  "createdAt": "2026-10-07T12:03:33.315Z",
+  "updatedAt": "2026-10-07T12:03:33.315Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a4c",
+  "name": "NAFCO",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Lee",
+  "nameKey": "nafco",
+  "createdAt": "2026-10-07T12:03:33.316Z",
+  "updatedAt": "2026-10-07T12:03:33.316Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a4e",
+  "name": "New Age Ironworks",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "new age ironworks",
+  "createdAt": "2026-10-07T12:03:33.316Z",
+  "updatedAt": "2026-10-07T12:03:33.316Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a50",
+  "name": "Northside Steel Fabricators",
+  "priority": false,
+  "awardedBase": {
+   "2025": 5,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "northside steel fabricators",
+  "createdAt": "2026-10-07T12:03:33.317Z",
+  "updatedAt": "2026-10-07T12:03:33.317Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a52",
+  "name": "P&A Welding",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "p&a welding",
+  "createdAt": "2026-10-07T12:03:33.318Z",
+  "updatedAt": "2026-10-07T12:03:33.318Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a54",
+  "name": "Palmetto welding & fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "palmetto welding & fabrication",
+  "createdAt": "2026-10-07T12:03:33.319Z",
+  "updatedAt": "2026-10-07T12:03:33.319Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a56",
+  "name": "Panel Systems",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "panel systems",
+  "createdAt": "2026-10-07T12:03:33.319Z",
+  "updatedAt": "2026-10-07T12:03:33.319Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a58",
+  "name": "Patriot Erectors",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 2
+  },
+  "salesLead": "Lee",
+  "nameKey": "patriot erectors",
+  "createdAt": "2026-10-07T12:03:33.320Z",
+  "updatedAt": "2026-10-07T12:03:33.320Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a5a",
+  "name": "Porter Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "porter steel",
+  "createdAt": "2026-10-07T12:03:33.321Z",
+  "updatedAt": "2026-10-07T12:03:33.321Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a5c",
+  "name": "R & S Steel, LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "r & s steel, llc",
+  "createdAt": "2026-10-07T12:03:33.322Z",
+  "updatedAt": "2026-10-07T12:03:33.322Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a5e",
+  "name": "Rebel Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 5
+  },
+  "salesLead": "Lee",
+  "nameKey": "rebel steel",
+  "createdAt": "2026-10-07T12:03:33.322Z",
+  "updatedAt": "2026-10-07T12:03:33.322Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a60",
+  "name": "Remo Steel Fabricators, Inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "remo steel fabricators, inc",
+  "createdAt": "2026-10-07T12:03:33.323Z",
+  "updatedAt": "2026-10-07T12:03:33.323Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a62",
+  "name": "Ritner Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "ritner steel",
+  "createdAt": "2026-10-07T12:03:33.324Z",
+  "updatedAt": "2026-10-07T12:03:33.324Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a64",
+  "name": "Robo Construction",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "robo construction",
+  "createdAt": "2026-10-07T12:03:33.325Z",
+  "updatedAt": "2026-10-07T12:03:33.325Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a66",
+  "name": "Saber Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "saber steel",
+  "createdAt": "2026-10-07T12:03:33.325Z",
+  "updatedAt": "2026-10-07T12:03:33.325Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a68",
+  "name": "Selco MFG",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "selco mfg",
+  "createdAt": "2026-10-07T12:03:33.326Z",
+  "updatedAt": "2026-10-07T12:03:33.326Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a6a",
+  "name": "Shamrock Construction Group",
+  "priority": false,
+  "awardedBase": {
+   "2025": 14,
+   "2026": 7
+  },
+  "nameKey": "shamrock construction group",
+  "createdAt": "2026-10-07T12:03:33.327Z",
+  "updatedAt": "2026-10-07T12:03:33.327Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a6c",
+  "name": "Smith ironworks",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "smith ironworks",
+  "createdAt": "2026-10-07T12:03:33.327Z",
+  "updatedAt": "2026-10-07T12:03:33.327Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a6e",
+  "name": "South Central Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "south central steel",
+  "createdAt": "2026-10-07T12:03:33.328Z",
+  "updatedAt": "2026-10-07T12:03:33.328Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a70",
+  "name": "Southeastern Steel, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "southeastern steel, inc.",
+  "createdAt": "2026-10-07T12:03:33.329Z",
+  "updatedAt": "2026-10-07T12:03:33.329Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a72",
+  "name": "speedway steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 1
+  },
+  "nameKey": "speedway steel",
+  "createdAt": "2026-10-07T12:03:33.330Z",
+  "updatedAt": "2026-10-07T12:03:33.330Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a74",
+  "name": "State SteelWorks",
+  "priority": false,
+  "awardedBase": {
+   "2025": 4,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "state steelworks",
+  "createdAt": "2026-10-07T12:03:33.330Z",
+  "updatedAt": "2026-10-07T12:03:33.330Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a76",
+  "name": "Steel Fab, LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "steel fab, llc",
+  "createdAt": "2026-10-07T12:03:33.331Z",
+  "updatedAt": "2026-10-07T12:03:33.331Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a78",
+  "name": "Steelworks",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 1
+  },
+  "salesLead": "Lee",
+  "nameKey": "steelworks",
+  "createdAt": "2026-10-07T12:03:33.332Z",
+  "updatedAt": "2026-10-07T12:03:33.332Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a7a",
+  "name": "Suncoast Steel Erectors,LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "suncoast steel erectors,llc",
+  "createdAt": "2026-10-07T12:03:33.333Z",
+  "updatedAt": "2026-10-07T12:03:33.333Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a7c",
+  "name": "The Metal Works",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "the metal works",
+  "createdAt": "2026-10-07T12:03:33.333Z",
+  "updatedAt": "2026-10-07T12:03:33.333Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a7e",
+  "name": "Thrifty Iron Works",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 5
+  },
+  "salesLead": "Daniel",
+  "nameKey": "thrifty iron works",
+  "createdAt": "2026-10-07T12:03:33.334Z",
+  "updatedAt": "2026-10-07T12:03:33.334Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a80",
+  "name": "Tincher’s Welding",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 5
+  },
+  "salesLead": "Lee",
+  "nameKey": "tincher’s welding",
+  "createdAt": "2026-10-07T12:03:33.335Z",
+  "updatedAt": "2026-10-07T12:03:33.335Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a82",
+  "name": "Transco Industries",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "transco industries",
+  "createdAt": "2026-10-07T12:03:33.336Z",
+  "updatedAt": "2026-10-07T12:03:33.336Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a84",
+  "name": "TRB Supply, INC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "trb supply, inc",
+  "createdAt": "2026-10-07T12:03:33.337Z",
+  "updatedAt": "2026-10-07T12:03:33.337Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a86",
+  "name": "Triple Steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 1,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "triple steel",
+  "createdAt": "2026-10-07T12:03:33.337Z",
+  "updatedAt": "2026-10-07T12:03:33.337Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a88",
+  "name": "TT custom fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 3
+  },
+  "salesLead": "Daniel",
+  "nameKey": "tt custom fabrication",
+  "createdAt": "2026-10-07T12:03:33.338Z",
+  "updatedAt": "2026-10-07T12:03:33.338Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a8a",
+  "name": "United Steelworks, Inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 15,
+   "2026": 4
+  },
+  "nameKey": "united steelworks, inc.",
+  "createdAt": "2026-10-07T12:03:33.339Z",
+  "updatedAt": "2026-10-07T12:03:33.339Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a8c",
+  "name": "Viking Steel Fab, LLC",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "viking steel fab, llc",
+  "createdAt": "2026-10-07T12:03:33.340Z",
+  "updatedAt": "2026-10-07T12:03:33.340Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a8e",
+  "name": "Village Forge Inc",
+  "priority": false,
+  "awardedBase": {
+   "2025": 2,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "village forge inc",
+  "createdAt": "2026-10-07T12:03:33.341Z",
+  "updatedAt": "2026-10-07T12:03:33.341Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a90",
+  "name": "VM Iron Work",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 2
+  },
+  "salesLead": "Daniel",
+  "nameKey": "vm iron work",
+  "createdAt": "2026-10-07T12:03:33.341Z",
+  "updatedAt": "2026-10-07T12:03:33.341Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a92",
+  "name": "Whitley steel",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 3
+  },
+  "salesLead": "Daniel",
+  "nameKey": "whitley steel",
+  "createdAt": "2026-10-07T12:03:33.342Z",
+  "updatedAt": "2026-10-07T12:03:33.342Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a94",
+  "name": "Winklers inc.",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Lee",
+  "nameKey": "winklers inc.",
+  "createdAt": "2026-10-07T12:03:33.343Z",
+  "updatedAt": "2026-10-07T12:03:33.343Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a96",
+  "name": "Hammerhead Construction",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "hammerhead construction",
+  "createdAt": "2026-10-07T12:03:33.344Z",
+  "updatedAt": "2026-10-07T12:03:33.344Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a98",
+  "name": "Modern Steels",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "modern steels",
+  "createdAt": "2026-10-07T12:03:33.344Z",
+  "updatedAt": "2026-10-07T12:03:33.344Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a9a",
+  "name": "Falcon Construction",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "nameKey": "falcon construction",
+  "createdAt": "2026-10-07T12:03:33.345Z",
+  "updatedAt": "2026-10-07T12:03:33.345Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a9c",
+  "name": "RR Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "rr fabrication",
+  "createdAt": "2026-10-07T12:03:33.346Z",
+  "updatedAt": "2026-10-07T12:03:33.346Z",
+  "__v": 0
+ },
+ {
+  "_id": "6ac6351594c94fe66add8a9e",
+  "name": "Baltimore Fabrication",
+  "priority": false,
+  "awardedBase": {
+   "2025": 0,
+   "2026": 0
+  },
+  "salesLead": "Daniel",
+  "nameKey": "baltimore fabrication",
+  "createdAt": "2026-10-07T12:03:33.347Z",
+  "updatedAt": "2026-10-07T12:03:33.347Z",
+  "__v": 0
+ }
+]

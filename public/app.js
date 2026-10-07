@@ -1,6 +1,7 @@
 const API = '/api/estimations';
 const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold'];
-const { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, compute } = window.EstCalc;
+const { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, compute,
+  newPage, normalizePage, computeEstimation } = window.EstCalc;
 const CLIENTS_API = '/api/clients';
 const nameKey = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 const LV_TITLE = `Client is not a priority client and total hours are less than ${LESS_VALUE_HOURS}`;
@@ -66,7 +67,7 @@ async function loadList() {
         <td>${esc(e.projectName)}</td>
         <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
         <td>${esc(e.doneBy) || '—'}</td>
-        <td class="num">${(e.sheets || []).length}</td>
+        <td class="num">${e.sheetCount || 0}${e.pageCount > 1 ? `<div class="sub">${e.pageCount} pages</div>` : ''}</td>
         <td class="num">${fmt(e.totalHours)}</td>
         <td class="num">${fmt(e.totalDwgs, 0)}</td>
         <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
@@ -131,25 +132,29 @@ $('#rows').addEventListener('click', async ev => {
 // =====================================================================
 let cur = null;    // estimation being edited
 let dirty = false;
+let activePage = 0; // index of the chart page shown
+const pg = () => cur.pages[activePage];
 
 function blankEstimation(jobNo) {
   return {
     jobNo, projectName: '', clientName: '', date: today(), doneBy: '', status: 'Received',
-    sheets: ['', '', '', '', ''],
-    items: normalizeItems([], 5),
-    dwgOverrides: {},
-    hoursPerTon: DEFAULT_HRS_PER_TON,
-    additionalHoursFor: '',
-    arch: [{}, {}, {}, {}], span: ['', '', ''], weight: ['', '', ''],
+    pages: [newPage('Page 1')],
     structDescriptions: [], miscDescriptions: [],
-    exclusions: ['Design calculations', 'connection design (unless specified)'],
-    scope: 'Mainsteel and Misc', complexity: 'Medium',
-    deliverables: ['Shop Drawings', 'Erection Drawings', 'CNC Files', 'Other files'],
+    exclusions: [],
+    proposalExclusions: ['Any structural steel not shown, sized or dimensioned on the structural / architectural drawings.', 'Joist details, deck, and foundation rebar details.', 'Engineering'],
+    scope: '', complexity: '', deliverables: [],
     coordinationNeeded: '', durationWeeks: null, quotedTonnage: null,
-    assumptions: 'Steel design completed by client', remark: 'Nil',
-    proposalDate: null, quoteNo: '', submittalWeeks: 2, signerName: '', signerTitle: '',
-    links: [{ label: 'SharePoint folder', url: '' }],
+    assumptions: '', remark: '',
+    proposalDate: null, quoteNo: '', submittalWeeks: null, signerName: '', signerTitle: '',
+    links: [{ label: '', url: '' }],
   };
+}
+
+// Make sure the loaded estimation has well-formed pages
+function normalizeCur() {
+  cur.pages = (cur.pages && cur.pages.length ? cur.pages : [newPage('Page 1')]).map((p, i) => normalizePage(p, i));
+  if (activePage >= cur.pages.length) activePage = cur.pages.length - 1;
+  if (!cur.links?.length) cur.links = [{ label: '', url: '' }];
 }
 
 let clientPrio = new Set(); // nameKeys of priority clients
@@ -166,7 +171,7 @@ function updateClientFlags(totalHours) {
   const name = cur.clientName || '';
   const prio = clientPrio.has(nameKey(name));
   $('#clientBadge').innerHTML = prio ? '<span class="star">★</span> Priority client' : '';
-  const less = !!name.trim() && isLessValueJob(totalHours ?? compute(cur).totalHours, prio);
+  const less = !!name.trim() && isLessValueJob(totalHours ?? computeEstimation(cur).totalHours, prio);
   $('#lessValueBadge').hidden = !less;
   $('#lessValueBadge').title = LV_TITLE;
 }
@@ -177,22 +182,27 @@ async function openEditor(id) {
   $('#saveMsg').textContent = '';
   if (id) {
     cur = await api(`${API}/${id}`);
-    cur.items = normalizeItems(cur.items, cur.sheets.length);
-    cur.dwgOverrides = cur.dwgOverrides || {};
-    if (!cur.links?.length) cur.links = [{ label: 'SharePoint folder', url: '' }];
   } else {
     const { jobNo } = await api(`${API}/next-no`).catch(() => ({ jobNo: '' }));
     cur = blankEstimation(jobNo);
   }
+  activePage = 0;
+  normalizeCur();
   dirty = false;
   fillForm();
   renderAll();
 }
 
 function fillForm() {
+  // Older estimations may have a "Done by" value that isn't in the drop-down — keep it selectable
+  const doneBy = $('#doneBySelect');
+  doneBy.querySelectorAll('option[data-extra]').forEach(o => o.remove());
+  if (cur.doneBy && ![...doneBy.options].some(o => o.value === cur.doneBy)) {
+    doneBy.insertAdjacentHTML('beforeend', `<option data-extra>${esc(cur.doneBy)}</option>`);
+  }
   for (const el of form.elements) {
     if (!el.name) continue;
-    if (el.name === 'exclusions') el.value = (cur.exclusions || []).join('\n');
+    if (el.name === 'exclusions' || el.name === 'proposalExclusions') el.value = (cur[el.name] || []).join('\n');
     else if (el.name === 'deliverables') el.checked = (cur.deliverables || []).includes(el.value);
     else if (el.type === 'date') el.value = toInputDate(cur[el.name]);
     else el.value = cur[el.name] ?? '';
@@ -201,6 +211,7 @@ function fillForm() {
   $('#excelBtn').disabled = !cur._id;
   $('#emailBtn').disabled = !cur._id;
   $('#proposalBtn').disabled = !cur._id;
+  $('#packageBtn').disabled = !cur._id;
   updateQuotePlaceholder();
   updateDueInfo();
 }
@@ -216,9 +227,7 @@ function updateDueInfo() {
 }
 
 function renderAll() {
-  renderChart();
-  renderDwgs();
-  renderExtras();
+  renderPage();
   renderDesc('structDescriptions');
   renderDesc('miscDescriptions');
   renderLinks();
@@ -236,9 +245,44 @@ function renderLinks() {
     || '<p class="sub">No links yet</p>';
 }
 
+// ---------- Pages (tabs) ----------
+function renderPageTabs() {
+  $('#pageTabs').innerHTML = cur.pages.map((p, i) => `<button type="button" class="page-tab ${i === activePage ? 'active' : ''}"
+      data-page="${i}" title="${i === activePage ? 'Double-click to rename' : 'Open this page'}">${esc(p.name || `Page ${i + 1}`)}</button>`).join('') +
+    `<button type="button" class="page-tab add" id="addPageBtn" title="Add a new page">+ Add page</button>`;
+  $('#renamePageBtn').hidden = false;
+  $('#deletePageBtn').hidden = cur.pages.length <= 1;
+  document.querySelectorAll('.page-name').forEach(el => { el.textContent = pg().name; });
+}
+
+// Everything that belongs to the current page
+function renderPage() {
+  renderPageTabs();
+  renderChart();
+  renderDwgs();
+  renderExtras();
+}
+
+function switchPage(i) {
+  activePage = i;
+  renderPage();
+  updateComputed();
+}
+
+function renamePage(i = activePage) {
+  const name = prompt('Page name:', cur.pages[i].name);
+  if (name === null) return;
+  const clean = name.trim();
+  if (!clean) return;
+  if (cur.pages.some((p, k) => k !== i && p.name.toLowerCase() === clean.toLowerCase())) return alert(`A page named "${clean}" already exists.`);
+  cur.pages[i].name = clean;
+  dirty = true;
+  renderPageTabs();
+}
+
 // ---------- Chart grid ----------
 function renderChart() {
-  const sheets = cur.sheets;
+  const sheets = pg().sheets;
   const head = `<thead><tr>
       <th class="sticky">SHEET NO.</th>
       <th class="rate">Rate<div class="sub">min / div</div></th>
@@ -246,7 +290,7 @@ function renderChart() {
           <input class="sheet-name" data-sheet="${i}" value="${esc(s)}" placeholder="Sheet ${i + 1}" />
           <button type="button" class="x" data-del-sheet="${i}" title="Remove column">×</button></th>`).join('')}
       <th class="num tot">TOTAL</th><th class="num hrs">HRS REQ'D</th></tr></thead>`;
-  const body = cur.items
+  const body = pg().items
     .map((it, r) => `<tr>
       <th class="sticky">${esc(it.name)}</th>
       <td class="rate">${it.minutes === null ? '<span class="sub">hrs</span>'
@@ -266,7 +310,7 @@ function renderDwgs() {
     <tbody>
       <tr><th class="sticky">Calculated</th>${DWG_TYPES.map(d => `<td class="num" id="dwgCalc-${d.key}">${d.parts ? '' : '<span class="sub">manual</span>'}</td>`).join('')}<td></td></tr>
       <tr><th class="sticky">No Dwgs</th>${DWG_TYPES.map(d => {
-        const v = cur.dwgOverrides[d.key];
+        const v = pg().dwgOverrides[d.key];
         return `<td><input type="number" min="0" step="any" data-dwg="${d.key}" value="${v ?? ''}" placeholder="${d.parts ? 'auto' : '0'}" /></td>`;
       }).join('')}<td class="num"><strong id="dwgTotal"></strong></td></tr>
     </tbody>`;
@@ -274,11 +318,12 @@ function renderDwgs() {
 
 function renderExtras() {
   $('#archRows').innerHTML = [0, 1, 2, 3].map(k => `<div class="pair">
-      <input data-arch="${k}" data-f="ref" value="${esc(cur.arch[k]?.ref)}" placeholder="Ref" />
-      <input data-arch="${k}" data-f="description" value="${esc(cur.arch[k]?.description)}" placeholder="Description" /></div>`).join('');
+      <input data-arch="${k}" data-f="ref" value="${esc(pg().arch[k]?.ref)}" placeholder="Ref" />
+      <input data-arch="${k}" data-f="description" value="${esc(pg().arch[k]?.description)}" placeholder="Description" /></div>`).join('');
   for (const key of ['span', 'weight']) {
-    $(`#${key}Rows`).innerHTML = [0, 1, 2].map(k => `<input class="band band${k}" data-list="${key}" data-k="${k}" value="${esc(cur[key][k])}" />`).join('');
+    $(`#${key}Rows`).innerHTML = [0, 1, 2].map(k => `<input class="band band${k}" data-list="${key}" data-k="${k}" value="${esc(pg()[key][k])}" />`).join('');
   }
+  $('#additionalHoursFor').value = pg().additionalHoursFor || '';
 }
 
 function renderDesc(key) {
@@ -295,12 +340,13 @@ function renderDesc(key) {
 
 // ---------- Live totals ----------
 function updateComputed() {
-  const c = compute(cur);
+  const c = compute(pg());
+  const all = computeEstimation(cur);
   for (const it of c.items) {
     $(`#tot-${it.key}`).textContent = c.totals[it.key] ? fmt(c.totals[it.key]) : '';
     $(`#hrs-${it.key}`).textContent = c.hours[it.key] ? fmt(c.hours[it.key]) : '';
   }
-  cur.sheets.forEach((_, i) => {
+  pg().sheets.forEach((_, i) => {
     const s = c.items.reduce((a, it) => a + (+it.counts[i] || 0), 0);
     $(`#colTot-${i}`).textContent = s ? fmt(s) : '';
   });
@@ -311,15 +357,28 @@ function updateComputed() {
     $(`#dwgCalc-${d.key}`).textContent = fmt(auto);
   }
   $('#dwgTotal').textContent = fmt(c.totalDwgs);
-  updateClientFlags(c.totalHours);
-  $('#quotedTonnage').placeholder = `${Math.round(c.tonnage)} (calculated)`;
-  $('#summary').innerHTML = `
-    <div class="stat"><div class="label">Total Hrs Req'd</div><div class="value">${fmt(c.totalHours)}</div></div>
-    <div class="stat"><div class="label">Hours per Tonnage</div><div class="value">
-      <input type="number" id="hrsPerTon" min="0.01" step="any" value="${cur.hoursPerTon ?? DEFAULT_HRS_PER_TON}" /></div></div>
-    <div class="stat accent"><div class="label">Tonnage Expected</div><div class="value">${fmt(c.tonnage)} t</div></div>
-    <div class="stat"><div class="label">Total No. Dwgs</div><div class="value">${fmt(c.totalDwgs)}</div></div>
-    <div class="stat"><div class="label">Time Taken per Dwg</div><div class="value">${fmt(c.timePerDwg)} hrs</div></div>`;
+  updateClientFlags(all.totalHours);
+  $('#quotedTonnage').placeholder = all.tonnage ? `${Math.round(all.tonnage)} (calculated)` : '';
+  // Summary cards: built once per page so the hours-per-ton input keeps focus while typing
+  if ($('#summary').dataset.page !== String(activePage) || !$('#hrsPerTon')) {
+    $('#summary').dataset.page = String(activePage);
+    $('#summary').innerHTML = `
+      <div class="stat"><div class="label">Total Hrs Req'd</div><div class="value" id="sumHours"></div></div>
+      <div class="stat"><div class="label">Hours per Tonnage</div><div class="value">
+        <input type="number" id="hrsPerTon" min="0.01" step="any" value="${pg().hoursPerTon ?? DEFAULT_HRS_PER_TON}" /></div></div>
+      <div class="stat accent"><div class="label">Tonnage Expected</div><div class="value" id="sumTonnage"></div></div>
+      <div class="stat"><div class="label">Total No. Dwgs</div><div class="value" id="sumDwgs"></div></div>
+      <div class="stat"><div class="label">Time Taken per Dwg</div><div class="value" id="sumPerDwg"></div></div>`;
+  }
+  $('#sumHours').textContent = fmt(c.totalHours);
+  $('#sumTonnage').textContent = `${fmt(c.tonnage)} t`;
+  $('#sumDwgs').textContent = fmt(c.totalDwgs);
+  $('#sumPerDwg').textContent = `${fmt(c.timePerDwg)} hrs`;
+  // Whole-estimation totals (all pages)
+  $('#allPagesSummary').hidden = cur.pages.length < 2;
+  $('#allPagesSummary').innerHTML = `<strong>All ${cur.pages.length} pages:</strong>
+    ${fmt(all.totalHours)} hrs &nbsp;·&nbsp; <strong>${fmt(all.tonnage)} t</strong> &nbsp;·&nbsp; ${fmt(all.totalDwgs)} dwgs
+    &nbsp;·&nbsp; ${fmt(all.timePerDwg)} hrs/dwg`;
 }
 
 // ---------- Input handling ----------
@@ -328,21 +387,17 @@ form.addEventListener('input', ev => {
   const d = el.dataset;
   dirty = true;
   $('#saveMsg').textContent = '';
-  if (d.r !== undefined) cur.items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value;
-  else if (d.rate !== undefined) cur.items[+d.rate][d.f] = el.value === '' ? 0 : +el.value;
-  else if (d.sheet !== undefined) { cur.sheets[+d.sheet] = el.value; return; }
+  if (d.r !== undefined) pg().items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value;
+  else if (d.rate !== undefined) pg().items[+d.rate][d.f] = el.value === '' ? 0 : +el.value;
+  else if (d.sheet !== undefined) { pg().sheets[+d.sheet] = el.value; return; }
   else if (d.dwg) {
-    if (el.value === '') delete cur.dwgOverrides[d.dwg];
-    else cur.dwgOverrides[d.dwg] = +el.value;
+    if (el.value === '') delete pg().dwgOverrides[d.dwg];
+    else pg().dwgOverrides[d.dwg] = +el.value;
   } else if (el.id === 'hrsPerTon') {
-    cur.hoursPerTon = +el.value || DEFAULT_HRS_PER_TON;
-    // re-render summary without losing focus: update other cards only
-    const c = compute(cur);
-    const vals = $('#summary').querySelectorAll('.value');
-    vals[2].textContent = fmt(c.tonnage) + ' t';
-    return;
-  } else if (d.arch !== undefined) { (cur.arch[+d.arch] ||= {})[d.f] = el.value; return; }
-  else if (d.list) { cur[d.list][+d.k] = el.value; return; }
+    pg().hoursPerTon = +el.value || DEFAULT_HRS_PER_TON;
+  } else if (el.id === 'additionalHoursFor') { pg().additionalHoursFor = el.value; return; }
+  else if (d.arch !== undefined) { (pg().arch[+d.arch] ||= {})[d.f] = el.value; return; }
+  else if (d.list) { pg()[d.list][+d.k] = el.value; return; }
   else if (d.link !== undefined) {
     cur.links[+d.link][d.f] = el.value;
     if (d.f === 'url') {
@@ -358,7 +413,7 @@ form.addEventListener('input', ev => {
     if (el.type === 'checkbox') el.closest('tr').classList.toggle('heading', el.checked);
     return;
   } else if (el.name) {
-    if (el.name === 'exclusions') cur.exclusions = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (el.name === 'exclusions' || el.name === 'proposalExclusions') cur[el.name] = el.value.split('\n').map(s => s.trim()).filter(Boolean);
     else if (el.name === 'deliverables') cur.deliverables = [...form.querySelectorAll('input[name=deliverables]:checked')].map(i => i.value);
     else if (el.type === 'number') cur[el.name] = el.value === '' ? null : +el.value;
     else cur[el.name] = el.value;
@@ -383,12 +438,21 @@ $('#chart').addEventListener('keydown', ev => {
 
 form.addEventListener('click', ev => {
   const d = ev.target.dataset;
-  if (d.delSheet !== undefined) {
+  if (d.page !== undefined) {
+    if (+d.page !== activePage) switchPage(+d.page);
+  } else if (ev.target.id === 'addPageBtn') {
+    const base = 'Page ';
+    let n = cur.pages.length + 1;
+    while (cur.pages.some(p => p.name.toLowerCase() === (base + n).toLowerCase())) n++;
+    cur.pages.push(newPage(base + n));
+    dirty = true;
+    switchPage(cur.pages.length - 1);
+  } else if (d.delSheet !== undefined) {
     const i = +d.delSheet;
-    const used = cur.items.some(it => +it.counts[i]);
-    if (used && !confirm(`Remove column "${cur.sheets[i] || 'Sheet ' + (i + 1)}" and its quantities?`)) return;
-    cur.sheets.splice(i, 1);
-    cur.items.forEach(it => it.counts.splice(i, 1));
+    const used = pg().items.some(it => +it.counts[i]);
+    if (used && !confirm(`Remove column "${pg().sheets[i] || 'Sheet ' + (i + 1)}" and its quantities?`)) return;
+    pg().sheets.splice(i, 1);
+    pg().items.forEach(it => it.counts.splice(i, 1));
     dirty = true;
     renderChart(); updateComputed();
   } else if (d.add) {
@@ -417,26 +481,43 @@ $('#addLinkBtn').onclick = () => {
 };
 
 $('#addSheetBtn').onclick = () => {
-  if (cur.sheets.length >= MAX_SHEETS) return;
-  cur.sheets.push('');
-  cur.items.forEach(it => it.counts.push(0));
+  if (pg().sheets.length >= MAX_SHEETS) return;
+  pg().sheets.push('');
+  pg().items.forEach(it => it.counts.push(0));
   dirty = true;
   renderChart(); updateComputed();
-  $(`#chart input[data-sheet="${cur.sheets.length - 1}"]`).focus();
+  $(`#chart input[data-sheet="${pg().sheets.length - 1}"]`).focus();
+};
+
+// Page tabs: double-click to rename; rename / delete buttons
+$('#pageTabs').addEventListener('dblclick', ev => {
+  const i = ev.target.dataset.page;
+  if (i !== undefined) renamePage(+i);
+});
+$('#renamePageBtn').onclick = () => renamePage();
+$('#deletePageBtn').onclick = () => {
+  if (cur.pages.length <= 1) return;
+  const p = pg();
+  const hasData = p.items.some(it => it.counts.some(v => +v));
+  if (!confirm(`Delete page "${p.name}"${hasData ? ' and all its quantities' : ''}?`)) return;
+  cur.pages.splice(activePage, 1);
+  activePage = Math.max(0, activePage - 1);
+  dirty = true;
+  switchPage(activePage);
 };
 
 async function save() {
   $('#formError').hidden = true;
   if (!form.reportValidity()) return false;
-  const body = { ...cur, sheets: cur.sheets.map(s => s.trim()) };
+  const body = { ...cur, pages: cur.pages.map(p => ({ ...p, name: (p.name || '').trim(), sheets: p.sheets.map(s => s.trim()) })) };
   try {
     const saved = cur._id
       ? await api(`${API}/${cur._id}`, { method: 'PUT', body: JSON.stringify(body) })
       : await api(API, { method: 'POST', body: JSON.stringify(body) });
     const wasNew = !cur._id;
     cur = saved;
-    cur.items = normalizeItems(cur.items, cur.sheets.length);
-    cur.dwgOverrides = cur.dwgOverrides || {};
+    normalizeCur();
+    renderPageTabs();
     dirty = false;
     $('#saveMsg').textContent = `Saved ${new Date().toLocaleTimeString()}`;
     if (wasNew) { history.replaceState(null, '', `#/edit/${cur._id}`); lastHash = location.hash; }
@@ -444,8 +525,8 @@ async function save() {
     $('#excelBtn').disabled = false;
     $('#emailBtn').disabled = false;
     $('#proposalBtn').disabled = false;
+    $('#packageBtn').disabled = false;
     loadClientOptions().then(() => updateClientFlags()); // a newly typed client is now in the list
-    if (!cur.links?.length) cur.links = [{ label: 'SharePoint folder', url: '' }];
     renderLinks();
     return true;
   } catch (err) {
@@ -457,6 +538,10 @@ async function save() {
 }
 
 $('#saveBtn').onclick = save;
+$('#packageBtn').onclick = async () => {
+  if (dirty && !(await save())) return;
+  location.href = `${API}/${cur._id}/package`;
+};
 $('#proposalBtn').onclick = async () => {
   if (dirty && !(await save())) return;
   location.href = `${API}/${cur._id}/proposal`;
@@ -488,7 +573,7 @@ function emailOptions() {
 }
 
 function refreshEmail() {
-  currentEmail = window.EstEmail.build(cur, compute(cur).tonnage, emailOptions());
+  currentEmail = window.EstEmail.build(cur, computeEstimation(cur).tonnage, emailOptions());
   $('#emailPreview').innerHTML = currentEmail.html;
 }
 
@@ -496,7 +581,7 @@ $('#emailBtn').onclick = async () => {
   if (dirty && !(await save())) return;
   $('#emailGreeting').value = pref.get('email.greeting', 'Hi sir,');
   $('#emailSignature').value = pref.get('email.signature', '');
-  $('#emailLinks').checked = pref.get('email.links', '0') === '1';
+  $('#emailLinks').checked = pref.get('email.includeLinks', '1') === '1';
   $('#emailLinks').disabled = !cur.links.some(l => l.url);
   $('#emailMsg').textContent = '';
   refreshEmail();
@@ -506,7 +591,7 @@ $('#emailBtn').onclick = async () => {
 ['emailGreeting', 'emailSignature', 'emailLinks'].forEach(id => $(`#${id}`).addEventListener('input', () => {
   pref.set('email.greeting', $('#emailGreeting').value);
   pref.set('email.signature', $('#emailSignature').value);
-  pref.set('email.links', $('#emailLinks').checked ? '1' : '0');
+  pref.set('email.includeLinks', $('#emailLinks').checked ? '1' : '0');
   refreshEmail();
 }));
 

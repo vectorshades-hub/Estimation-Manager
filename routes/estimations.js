@@ -16,11 +16,12 @@ async function withFlags(docs) {
 const { buildWorkbook } = require('../lib/excel');
 const { buildExport } = require('../lib/exportList');
 const { buildProposal, proposalFileName } = require('../lib/proposal');
+const JSZip = require('jszip');
 
 const router = express.Router();
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIST_FIELDS = 'jobNo projectName clientName date doneBy dueDate status links sheets totalCount totalHours totalDwgs approxTonnage createdAt';
+const LIST_FIELDS = 'jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
 
 // Shared by the list and the Excel export.
 // Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd)
@@ -67,7 +68,7 @@ router.get('/', async (req, res, next) => {
 // Export the (filtered) list to Excel
 router.get('/export', async (req, res, next) => {
   try {
-    const items = await findFiltered(req.query, '-items -arch -span -weight -structDescriptions -miscDescriptions -dwgOverrides');
+    const items = await findFiltered(req.query, '-pages -structDescriptions -miscDescriptions');
     const wb = await buildExport(items, describeFilters(req.query));
     const d = new Date();
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -124,6 +125,32 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+const safeName = s => s.replace(/[\\/:*?"<>|]/g, '-');
+const chartFileName = est => safeName(`${[est.jobNo, est.projectName].filter(Boolean).join(' ')}_output.xlsx`);
+
+// "Ready for Submittal": Excel estimation chart + Word proposal in one zip
+router.get('/:id/package', async (req, res, next) => {
+  try {
+    const doc = await Estimation.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    const est = doc.toObject({ flattenMaps: true });
+    const wb = await buildWorkbook(est);
+    const zip = new JSZip();
+    // Zip entries store wall-clock time; JSZip writes UTC, so shift to local time
+    const now = new Date();
+    const date = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    zip.file(chartFileName(est), await wb.xlsx.writeBuffer(), { date });
+    zip.file(proposalFileName(est), await buildProposal(est), { date });
+    const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    const name = safeName(`${[est.jobNo, est.projectName].filter(Boolean).join(' - ')} - Submittal.zip`);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.send(buf);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Download the estimation chart as .xlsx
 router.get('/:id/excel', async (req, res, next) => {
   try {
@@ -131,7 +158,7 @@ router.get('/:id/excel', async (req, res, next) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const est = doc.toObject({ flattenMaps: true });
     const wb = await buildWorkbook(est);
-    const name = `${[est.jobNo, est.projectName].filter(Boolean).join(' ')}_output.xlsx`.replace(/[\\/:*?"<>|]/g, '-');
+    const name = chartFileName(est);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
     await wb.xlsx.write(res);

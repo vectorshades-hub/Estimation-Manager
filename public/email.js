@@ -6,7 +6,7 @@ window.EstEmail = (function () {
 
   function tonnageText(est, calcTonnage) {
     const t = est.quotedTonnage != null && est.quotedTonnage !== '' ? +est.quotedTonnage : Math.round(calcTonnage || 0);
-    return `${t.toLocaleString()} MT`;
+    return t ? `${t.toLocaleString()} MT` : '';
   }
 
   function rows(est, calcTonnage) {
@@ -21,8 +21,8 @@ window.EstEmail = (function () {
       ['Project Duration (Approx)', est.durationWeeks ? `${est.durationWeeks} Weeks` : ''],
       ['Assumptions*', est.assumptions],
       ['Exclusions*', (est.exclusions || []).join(', ')],
-      ['Remark*', est.remark || 'Nil'],
-    ];
+      ['Remark*', est.remark],
+    ].filter(([, v]) => String(v ?? '').trim() !== ''); // only rows that have a value
   }
 
   function build(est, calcTonnage, { greeting = 'Hi sir,', includeLinks = false, signature = '' } = {}) {

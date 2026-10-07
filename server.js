@@ -33,6 +33,8 @@ mongoose
   .then(async () => {
     console.log(`Connected to MongoDB at ${MONGODB_URI}`);
     await require('./models/Estimation').syncIndexes(); // drop stale indexes from older schema versions
+    const migrated = await require('./models/Estimation').migrateToPages();
+    if (migrated) console.log(`Moved ${migrated} estimation chart(s) into pages`);
     const Client = require('./models/Client');
     await Client.syncIndexes();
     // Make sure every client used in an estimation is in the client list

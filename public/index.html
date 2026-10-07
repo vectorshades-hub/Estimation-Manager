@@ -69,6 +69,7 @@
       <span id="lessValueBadge" class="lv-badge" hidden>Less value job</span>
       <span class="spacer"></span>
       <span id="saveMsg" class="save-msg"></span>
+      <button class="btn submittal-btn" id="packageBtn" type="button" title="Download the Excel chart and the Word proposal together in one zip">📦 Ready for Submittal</button>
       <button class="btn" id="excelBtn" type="button">Download Excel</button>
       <button class="btn" id="proposalBtn" type="button">📄 Proposal (Word)</button>
       <button class="btn" id="emailBtn" type="button">✉ Reply Email</button>
@@ -80,14 +81,21 @@
       <section class="card">
         <h3>Details</h3>
         <div class="fields">
-          <label>No. *<input name="jobNo" required placeholder="26-149" /></label>
+          <label>No. *<input name="jobNo" required /></label>
           <label>Date<input name="date" type="date" /></label>
-          <label class="wide">Project name *<input name="projectName" required placeholder="AURORA ACC" /></label>
+          <label class="wide">Project name *<input name="projectName" required /></label>
           <label class="wide">Client name * <span id="clientBadge" class="client-badge"></span>
             <input name="clientName" required list="clientOptions" placeholder="Select from list or type a new name" />
             <datalist id="clientOptions"></datalist>
           </label>
-          <label>Done by<input name="doneBy" placeholder="Aiswarya/Akhil.s" /></label>
+          <label>Done by
+            <select name="doneBy" id="doneBySelect">
+              <option value=""></option>
+              <option>Akhil</option>
+              <option>Aiswarya</option>
+              <option>Aiswarya/Akhil</option>
+            </select>
+          </label>
           <label>Status<select name="status" id="statusSelect"></select></label>
           <label>Due date<input name="dueDate" type="date" /><span id="dueInfo" class="due-line"></span></label>
           <label>Contact person<input name="contactPerson" /></label>
@@ -110,13 +118,13 @@
             </datalist>
           </label>
           <label>Complexity
-            <select name="complexity"><option>Low</option><option>Medium</option><option>High</option></select>
+            <select name="complexity"><option value=""></option><option>Low</option><option>Medium</option><option>High</option></select>
           </label>
           <label>Estimated tonnage for client (MT)
             <input name="quotedTonnage" type="number" min="0" step="any" id="quotedTonnage" />
           </label>
           <label>Project duration (weeks)<input name="durationWeeks" type="number" min="0" step="1" /></label>
-          <label class="wide">Coordination needed<input name="coordinationNeeded" placeholder="Yes. Joist,Deck,Precast" /></label>
+          <label class="wide">Coordination needed<input name="coordinationNeeded" /></label>
           <div class="full checks">
             <span class="check-label">Deliverables</span>
             <label class="check"><input type="checkbox" name="deliverables" value="Shop Drawings" /> Shop Drawings</label>
@@ -127,16 +135,18 @@
           <label class="wide">Assumptions<input name="assumptions" /></label>
           <label class="wide">Remark<input name="remark" /></label>
         </div>
-        <p class="hint">Exclusions are taken from the “Specific Exclusions” section below.</p>
+        <p class="hint">Email exclusions are taken from the “Specific Exclusions” section below.</p>
 
         <h4 class="sub-head">Proposal (Word)</h4>
         <div class="fields">
           <label>Proposal date<input name="proposalDate" type="date" /></label>
           <label>Quote #<input name="quoteNo" id="quoteNo" placeholder="auto" /></label>
-          <label>Schedule of submittals (weeks)<input name="submittalWeeks" type="number" min="0" step="1" /></label>
+          <label title="More than 10 weeks adds: “- Sequencing Release +/- 2 Weeks for Duration of the project”">Schedule of submittals (weeks)<input name="submittalWeeks" type="number" min="0" step="1" /></label>
           <label>Signed by (name)<input name="signerName" placeholder="Lee Luck" /></label>
           <label>Signed by (title)<input name="signerTitle" placeholder="Lead Estimator" /></label>
         </div>
+        <label class="full proposal-excl">Proposal exclusions (one per line — printed as a. b. c. in the Word file)
+          <textarea name="proposalExclusions" rows="4"></textarea></label>
         <p class="hint">Blank proposal date = today. The detailing cost ($) is left empty in the Word file to fill in manually.
           Scope of Work is taken from the Struct. / Misc. Description lists.</p>
       </section>
@@ -155,24 +165,31 @@
           <span class="spacer"></span>
           <button type="button" class="btn small" id="addSheetBtn">+ Add sheet column</button>
         </div>
+        <div class="page-bar">
+          <div class="page-tabs" id="pageTabs"></div>
+          <span class="spacer"></span>
+          <button type="button" class="btn small" id="renamePageBtn" title="Rename this page">✎ Rename page</button>
+          <button type="button" class="btn small danger" id="deletePageBtn" title="Delete this page">Delete page</button>
+        </div>
         <div class="grid-wrap">
           <table class="chart" id="chart"></table>
         </div>
       </section>
 
       <section class="card">
-        <h3>No. of Drawings &amp; Tonnage</h3>
+        <h3>No. of Drawings &amp; Tonnage <span class="page-chip page-name"></span></h3>
         <div class="grid-wrap">
           <table class="chart dwgs" id="dwgTable"></table>
         </div>
         <p class="hint">Calculated drawing counts can be overridden by typing a value; leave blank to use the calculation.</p>
         <div class="summary" id="summary"></div>
+        <div class="all-pages" id="allPagesSummary" hidden></div>
       </section>
 
       <section class="card">
-        <h3>Additional Information</h3>
+        <h3>Additional Information <span class="page-chip page-name"></span></h3>
         <div class="fields">
-          <label class="full">Additional hours required for<input name="additionalHoursFor" /></label>
+          <label class="full">Additional hours required for<input id="additionalHoursFor" /></label>
         </div>
         <div class="split">
           <div>

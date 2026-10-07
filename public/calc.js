@@ -109,5 +109,61 @@
     };
   }
 
-  return { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, itemHours, compute };
+  // ---------- Pages (each page = one estimation chart / one Excel worksheet) ----------
+  const DEFAULT_SHEETS_PER_PAGE = 5;
+
+  function newPage(name, sheetCount = DEFAULT_SHEETS_PER_PAGE) {
+    return {
+      name: name || 'Page 1',
+      sheets: Array.from({ length: sheetCount }, () => ''),
+      items: normalizeItems([], sheetCount),
+      dwgOverrides: {},
+      hoursPerTon: DEFAULT_HRS_PER_TON,
+      additionalHoursFor: '',
+      arch: [{}, {}, {}, {}],
+      span: ['', '', ''],
+      weight: ['', '', ''],
+    };
+  }
+
+  // Fill in missing parts of a stored page
+  function normalizePage(p, i = 0) {
+    const sheets = (p && p.sheets) || [];
+    const pad = (arr, n, blank) => Array.from({ length: Math.max(n, (arr || []).length) }, (_, k) => (arr || [])[k] ?? blank());
+    return {
+      ...p,
+      name: (p && p.name) || `Page ${i + 1}`,
+      sheets: [...sheets],
+      items: normalizeItems(p && p.items, sheets.length),
+      dwgOverrides: (p && p.dwgOverrides) || {},
+      hoursPerTon: p && num(p.hoursPerTon) > 0 ? num(p.hoursPerTon) : DEFAULT_HRS_PER_TON,
+      additionalHoursFor: (p && p.additionalHoursFor) || '',
+      arch: pad(p && p.arch, 4, () => ({})),
+      span: pad(p && p.span, 3, () => ''),
+      weight: pad(p && p.weight, 3, () => ''),
+    };
+  }
+
+  // Totals for the whole estimation = sum of all pages
+  function computeEstimation(est) {
+    const pages = (est.pages && est.pages.length ? est.pages : [newPage()]).map((p, i) => normalizePage(p, i));
+    const perPage = pages.map(p => compute(p));
+    const sum = k => perPage.reduce((a, c) => a + c[k], 0);
+    const totalHours = sum('totalHours'), totalDwgs = sum('totalDwgs');
+    return {
+      pages: perPage,
+      totalCount: sum('totalCount'),
+      totalHours,
+      totalDwgs,
+      tonnage: sum('tonnage'),
+      sheetCount: pages.reduce((a, p) => a + p.sheets.length, 0),
+      pageCount: pages.length,
+      timePerDwg: totalDwgs ? totalHours / totalDwgs : 0,
+    };
+  }
+
+  return {
+    MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES,
+    normalizeItems, itemHours, compute, newPage, normalizePage, computeEstimation,
+  };
 });
