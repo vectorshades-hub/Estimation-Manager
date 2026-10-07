@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Estimation Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1><a href="#/">Estimation Manager</a></h1>
+    <nav class="nav">
+      <a href="#/" id="navEst">Estimations</a>
+      <a href="#/clients" id="navClients">Clients</a>
+    </nav>
+    <span class="spacer"></span>
+    <a href="#/new" class="btn primary" id="newBtn">+ New Estimation</a>
+  </header>
+
+  <!-- ===================== LIST VIEW ===================== -->
+  <main id="listView">
+    <section class="stats" id="stats"></section>
+
+    <section class="toolbar">
+      <input id="search" type="search" placeholder="Search No., project, client, location, done by…" />
+      <select id="statusFilter"><option value="">All statuses</option></select>
+      <select id="valueFilter">
+        <option value="">All jobs</option>
+        <option value="less">Less value jobs</option>
+        <option value="priority">Priority clients</option>
+      </select>
+      <label class="date-filter">From<input type="date" id="fromDate" /></label>
+      <label class="date-filter">To<input type="date" id="toDate" /></label>
+      <button type="button" class="btn" id="clearFilters" title="Clear all filters">Clear</button>
+      <button type="button" class="btn export-btn" id="exportBtn" title="Export the estimations shown below to Excel">⬇ Export to Excel</button>
+    </section>
+
+    <div class="table-wrap">
+      <table class="list">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Date</th>
+            <th>Project</th>
+            <th>Client</th>
+            <th>Done By</th>
+            <th class="num">Sheets</th>
+            <th class="num">Total Hrs</th>
+            <th class="num">No. Dwgs</th>
+            <th class="num">Tonnage</th>
+            <th>Due Date</th>
+            <th>Days Left</th>
+            <th>Status</th>
+            <th>Job Value</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p id="empty" class="empty" hidden>No estimations yet. Click “New Estimation” to add one.</p>
+    </div>
+  </main>
+
+  <!-- ===================== EDITOR VIEW ===================== -->
+  <main id="editorView" hidden>
+    <div class="editor-bar">
+      <a href="#/" class="btn">← Back</a>
+      <h2 id="editorTitle">New Estimation</h2>
+      <span id="lessValueBadge" class="lv-badge" hidden>Less value job</span>
+      <span class="spacer"></span>
+      <span id="saveMsg" class="save-msg"></span>
+      <button class="btn" id="excelBtn" type="button">Download Excel</button>
+      <button class="btn" id="emailBtn" type="button">✉ Reply Email</button>
+      <button class="btn primary" id="saveBtn" type="button">Save</button>
+    </div>
+    <p id="formError" class="error" hidden></p>
+
+    <form id="form" autocomplete="off" onsubmit="return false">
+      <section class="card">
+        <h3>Details</h3>
+        <div class="fields">
+          <label>No. *<input name="jobNo" required placeholder="26-149" /></label>
+          <label>Date<input name="date" type="date" /></label>
+          <label class="wide">Project name *<input name="projectName" required placeholder="AURORA ACC" /></label>
+          <label class="wide">Client name * <span id="clientBadge" class="client-badge"></span>
+            <input name="clientName" required list="clientOptions" placeholder="Select from list or type a new name" />
+            <datalist id="clientOptions"></datalist>
+          </label>
+          <label>Done by<input name="doneBy" placeholder="Aiswarya/Akhil.s" /></label>
+          <label>Status<select name="status" id="statusSelect"></select></label>
+          <label>Due date<input name="dueDate" type="date" /><span id="dueInfo" class="due-line"></span></label>
+          <label>Contact person<input name="contactPerson" /></label>
+          <label>Email<input name="contactEmail" type="email" /></label>
+          <label class="full">Internal notes<textarea name="notes" rows="2"></textarea></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Submission Details</h3>
+          <span class="hint">Used in the reply email</span>
+        </div>
+        <div class="fields">
+          <label class="wide">Major scope items
+            <input name="scope" list="scopeList" />
+            <datalist id="scopeList">
+              <option>Mainsteel and Misc</option><option>Mainsteel</option><option>Misc</option>
+              <option>Mainsteel, Misc and Stairs</option><option>Joist and Deck</option>
+            </datalist>
+          </label>
+          <label>Complexity
+            <select name="complexity"><option>Low</option><option>Medium</option><option>High</option></select>
+          </label>
+          <label>Estimated tonnage for client (MT)
+            <input name="quotedTonnage" type="number" min="0" step="any" id="quotedTonnage" />
+          </label>
+          <label>Project duration (weeks)<input name="durationWeeks" type="number" min="0" step="1" /></label>
+          <label class="wide">Coordination needed<input name="coordinationNeeded" placeholder="Yes. Joist,Deck,Precast" /></label>
+          <div class="full checks">
+            <span class="check-label">Deliverables</span>
+            <label class="check"><input type="checkbox" name="deliverables" value="Shop Drawings" /> Shop Drawings</label>
+            <label class="check"><input type="checkbox" name="deliverables" value="Erection Drawings" /> Erection Drawings</label>
+            <label class="check"><input type="checkbox" name="deliverables" value="CNC Files" /> CNC Files</label>
+            <label class="check"><input type="checkbox" name="deliverables" value="Other files" /> Other files</label>
+          </div>
+          <label class="wide">Assumptions<input name="assumptions" /></label>
+          <label class="wide">Remark<input name="remark" /></label>
+        </div>
+        <p class="hint">Exclusions are taken from the “Specific Exclusions” section below.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>SharePoint Links</h3>
+          <span class="hint">Folder links for this submission's documents</span><span class="spacer"></span>
+          <button type="button" class="btn small" id="addLinkBtn">+ Add link</button></div>
+        <div id="linkRows"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Estimation Chart</h3>
+          <span class="hint">Enter quantities per drawing sheet. Rate = minutes per unit / divisor.</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn small" id="addSheetBtn">+ Add sheet column</button>
+        </div>
+        <div class="grid-wrap">
+          <table class="chart" id="chart"></table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>No. of Drawings &amp; Tonnage</h3>
+        <div class="grid-wrap">
+          <table class="chart dwgs" id="dwgTable"></table>
+        </div>
+        <p class="hint">Calculated drawing counts can be overridden by typing a value; leave blank to use the calculation.</p>
+        <div class="summary" id="summary"></div>
+      </section>
+
+      <section class="card">
+        <h3>Additional Information</h3>
+        <div class="fields">
+          <label class="full">Additional hours required for<input name="additionalHoursFor" /></label>
+        </div>
+        <div class="split">
+          <div>
+            <h4>Arch</h4>
+            <div id="archRows"></div>
+          </div>
+          <div>
+            <h4>Span</h4>
+            <div id="spanRows"></div>
+          </div>
+          <div>
+            <h4>Weight</h4>
+            <div id="weightRows"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>Struct. Description</h3><span class="spacer"></span>
+          <button type="button" class="btn small" data-add="structDescriptions">+ Add line</button></div>
+        <table class="desc" id="structDescriptions"></table>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>Misc. Description</h3><span class="spacer"></span>
+          <button type="button" class="btn small" data-add="miscDescriptions">+ Add line</button></div>
+        <table class="desc" id="miscDescriptions"></table>
+      </section>
+
+      <section class="card">
+        <h3>Specific Exclusions</h3>
+        <label class="full">One exclusion per line<textarea name="exclusions" rows="4"></textarea></label>
+      </section>
+    </form>
+  </main>
+
+  <!-- ===================== CLIENTS VIEW ===================== -->
+  <main id="clientsView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Import Client List</h3><span class="spacer"></span>
+        <a class="btn small" href="/api/clients/template">Download template</a></div>
+      <p class="hint">Excel (.xlsx) or CSV. The first column headed “Client” / “Name” is used. An optional “Priority” column (Yes / No) sets priority clients.
+        Existing clients are kept; duplicates are skipped.</p>
+      <div class="import-row">
+        <input type="file" id="importFile" accept=".xlsx,.csv" />
+        <label class="check"><input type="checkbox" id="importPriority" /> Mark all imported clients as priority</label>
+        <button type="button" class="btn primary" id="importBtn">Import</button>
+        <span id="importMsg" class="save-msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h3>Clients</h3>
+        <span class="hint">★ = priority client. Non-priority clients with less than <span id="lvHours"></span> hrs are marked “Less value job”.</span></div>
+      <div class="toolbar">
+        <input id="clientSearch" type="search" placeholder="Search clients…" />
+        <select id="clientFilter"><option value="">All clients</option><option value="1">Priority only</option><option value="0">Non-priority only</option></select>
+      </div>
+      <div class="add-client">
+        <input id="newClientName" placeholder="Add a client name" />
+        <label class="check"><input type="checkbox" id="newClientPriority" /> Priority</label>
+        <button type="button" class="btn" id="addClientBtn">+ Add</button>
+        <span id="clientMsg" class="save-msg"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th style="width:110px">Priority</th><th>Client Name</th><th class="num">Estimations</th><th></th></tr></thead>
+          <tbody id="clientRows"></tbody>
+        </table>
+        <p id="clientEmpty" class="empty" hidden>No clients yet. Import an Excel file or add one above.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== REPLY EMAIL ===================== -->
+  <dialog id="emailDialog">
+    <div class="dialog-body">
+      <div class="card-head">
+        <h3>Reply Email</h3><span class="spacer"></span>
+        <button type="button" class="x" id="emailClose" title="Close">×</button>
+      </div>
+      <div class="fields">
+        <label>Greeting<input id="emailGreeting" /></label>
+        <label class="check inline"><input type="checkbox" id="emailLinks" /> Include SharePoint link(s)</label>
+        <label class="full">Signature (optional)<textarea id="emailSignature" rows="2" placeholder="Regards,&#10;Your name"></textarea></label>
+      </div>
+      <div class="email-preview" id="emailPreview"></div>
+      <ol class="steps">
+        <li>Click <strong>Copy email</strong>.</li>
+        <li>In Outlook, open the client's enquiry mail and click <strong>Reply</strong>.</li>
+        <li>Paste (Ctrl+V), then attach the Excel from <strong>Download Excel</strong>.</li>
+      </ol>
+      <div class="actions">
+        <span id="emailMsg" class="save-msg"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="emailMarkBtn">Mark as Submitted</button>
+        <button type="button" class="btn" id="emailExcelBtn">Download Excel</button>
+        <button type="button" class="btn primary" id="emailCopyBtn">Copy email</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="calc.js"></script>
+  <script src="email.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

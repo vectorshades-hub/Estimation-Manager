@@ -1,0 +1,59 @@
+# Dependencies (restored with `npm install`)
+node_modules/
+
+# Environment / secrets (MongoDB URI etc.)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime / cache
+pids/
+*.pid
+*.seed
+.npm/
+.eslintcache
+.cache/
+*.tsbuildinfo
+
+# Build / coverage output
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Local uploads and generated exports
+uploads/
+tmp/
+temp/
+*.tmp
+
+# Local Excel working copies (Office lock files)
+~$*
+
+# Python (workspace folder lives under /python)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.suo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local settings
+.claude/

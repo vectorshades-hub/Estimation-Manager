@@ -1,0 +1,657 @@
+const API = '/api/estimations';
+const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold'];
+const { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, compute } = window.EstCalc;
+const CLIENTS_API = '/api/clients';
+const nameKey = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const LV_TITLE = `Client is not a priority client and total hours are less than ${LESS_VALUE_HOURS}`;
+
+const $ = sel => document.querySelector(sel);
+const form = $('#form');
+
+const fmt = (n, d = 2) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: d });
+const fmtDate = d => (d ? new Date(d).toLocaleDateString(undefined, { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const toInputDate = d => (d ? new Date(d).toISOString().slice(0, 10) : '');
+const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const CLOSED = ['Submitted', 'Won', 'Lost'];
+
+// Days from today until the due date: { text, cls } or null when there is no due date.
+// Closed estimations (Submitted / Won / Lost) are shown in neutral grey.
+function dueInfo(dueDate, status) {
+  if (!dueDate) return null;
+  const [y, m, d] = toInputDate(dueDate).split('-').map(Number);
+  const [ty, tm, td] = today().split('-').map(Number);
+  const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
+  const closed = CLOSED.includes(status);
+  if (days < 0) return { days, text: `${-days} day${days === -1 ? '' : 's'} overdue`, cls: closed ? 'due-closed' : 'due-over' };
+  if (days === 0) return { days, text: 'Due today', cls: closed ? 'due-closed' : 'due-soon' };
+  return { days, text: `${days} day${days === 1 ? '' : 's'} left`, cls: closed ? 'due-closed' : days <= 3 ? 'due-soon' : 'due-ok' };
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+// =====================================================================
+// LIST VIEW
+// =====================================================================
+// Current list filters as query parameters (used by both the list and the Excel export)
+function listParams() {
+  const params = new URLSearchParams();
+  const set = (k, v) => { if (v) params.set(k, v); };
+  set('q', $('#search').value.trim());
+  set('status', $('#statusFilter').value);
+  set('value', $('#valueFilter').value);
+  set('from', $('#fromDate').value);
+  set('to', $('#toDate').value);
+  return params;
+}
+
+async function loadList() {
+  const params = listParams();
+  const [items, s] = await Promise.all([api(`${API}?${params}`), api(`${API}/stats/summary`)]);
+  $('#exportBtn').textContent = `⬇ Export to Excel (${items.length})`;
+  $('#clearFilters').hidden = !params.toString();
+
+  $('#rows').innerHTML = items
+    .map(e => {
+      const due = dueInfo(e.dueDate, e.status);
+      const won = e.status === 'Won';
+      return `<tr class="row-link ${won ? 'row-won' : ''}" data-open-id="${e._id}" title="Click to open">
+        <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo)}</strong></a></td>
+        <td>${fmtDate(e.date)}</td>
+        <td>${esc(e.projectName)}</td>
+        <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
+        <td>${esc(e.doneBy) || '—'}</td>
+        <td class="num">${(e.sheets || []).length}</td>
+        <td class="num">${fmt(e.totalHours)}</td>
+        <td class="num">${fmt(e.totalDwgs, 0)}</td>
+        <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
+        <td>${fmtDate(e.dueDate)}</td>
+        <td>${due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
+        <td><span class="badge ${e.status.replace(' ', '-')}">${esc(e.status)}</span></td>
+        <td>${e.lessValue ? `<span class="lv-badge small" title="${LV_TITLE}">Less value job</span>` : '—'}</td>
+        <td class="actions-cell">
+          ${won
+            ? `<button class="btn small won-on" data-won="0" data-id="${e._id}" title="Click to undo (sets status back to Submitted)">✓ Won</button>`
+            : `<button class="btn small won-btn" data-won="1" data-id="${e._id}">Mark Won</button>`}
+          <a class="btn small" href="#/edit/${e._id}">Edit</a>
+          ${e.links?.find(l => l.url) ? `<a class="btn small" href="${esc(e.links.find(l => l.url).url)}" target="_blank" rel="noopener" title="Open SharePoint folder">Folder</a>` : ''}
+          <a class="btn small" href="${API}/${e._id}/excel">Excel</a>
+          <button class="btn small danger" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}">Delete</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+  $('#empty').hidden = items.length > 0;
+
+  const won = s.byStatus.Won || { count: 0, tonnage: 0 };
+  const lost = s.byStatus.Lost?.count || 0;
+  const active = ['Received', 'In Progress'].reduce((n, k) => n + (s.byStatus[k]?.count || 0), 0);
+  const cards = [
+    ['Total Estimations', s.count],
+    ['Total Tonnage', fmt(s.tonnage, 1) + ' t'],
+    ['Total Hours', fmt(s.hours, 0)],
+    ['Active', active],
+    ['Submitted', s.byStatus.Submitted?.count || 0],
+    ['Won Tonnage', fmt(won.tonnage, 1) + ' t'],
+    ['Win Rate', won.count + lost ? Math.round((won.count / (won.count + lost)) * 100) + '%' : '—'],
+    ['Less Value Jobs', s.lessValue || 0],
+  ];
+  $('#stats').innerHTML = cards.map(([l, v]) => `<div class="stat"><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+}
+
+$('#rows').addEventListener('click', async ev => {
+  // Clicking anywhere on a row (except its buttons/links) opens the project
+  if (!ev.target.closest('a, button')) {
+    const row = ev.target.closest('tr[data-open-id]');
+    if (!row || getSelection().toString()) return; // don't hijack text selection
+    const url = `#/edit/${row.dataset.openId}`;
+    if (ev.ctrlKey || ev.metaKey) window.open(url, '_blank');
+    else location.hash = url;
+    return;
+  }
+  const d = ev.target.dataset;
+  if (d.won) {
+    if (d.won === '0' && !confirm('Remove the Won mark? Status will go back to Submitted.')) return;
+    await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ status: d.won === '1' ? 'Won' : 'Submitted' }) });
+    return loadList();
+  }
+  if (!d.del || !confirm(`Delete ${d.label}?`)) return;
+  await api(`${API}/${d.del}`, { method: 'DELETE' });
+  loadList();
+});
+
+// =====================================================================
+// EDITOR VIEW
+// =====================================================================
+let cur = null;    // estimation being edited
+let dirty = false;
+
+function blankEstimation(jobNo) {
+  return {
+    jobNo, projectName: '', clientName: '', date: today(), doneBy: '', status: 'Received',
+    sheets: ['', '', '', '', ''],
+    items: normalizeItems([], 5),
+    dwgOverrides: {},
+    hoursPerTon: DEFAULT_HRS_PER_TON,
+    additionalHoursFor: '',
+    arch: [{}, {}, {}, {}], span: ['', '', ''], weight: ['', '', ''],
+    structDescriptions: [], miscDescriptions: [],
+    exclusions: ['Design calculations', 'connection design (unless specified)'],
+    scope: 'Mainsteel and Misc', complexity: 'Medium',
+    deliverables: ['Shop Drawings', 'Erection Drawings', 'CNC Files', 'Other files'],
+    coordinationNeeded: '', durationWeeks: null, quotedTonnage: null,
+    assumptions: 'Steel design completed by client', remark: 'Nil',
+    links: [{ label: 'SharePoint folder', url: '' }],
+  };
+}
+
+let clientPrio = new Set(); // nameKeys of priority clients
+
+async function loadClientOptions() {
+  const clients = await api(CLIENTS_API).catch(() => []);
+  clientPrio = new Set(clients.filter(c => c.priority).map(c => c.nameKey));
+  $('#clientOptions').innerHTML = clients
+    .map(c => `<option value="${esc(c.name)}">${c.priority ? '★ Priority client' : ''}</option>`)
+    .join('');
+}
+
+function updateClientFlags(totalHours) {
+  const name = cur.clientName || '';
+  const prio = clientPrio.has(nameKey(name));
+  $('#clientBadge').innerHTML = prio ? '<span class="star">★</span> Priority client' : '';
+  const less = !!name.trim() && isLessValueJob(totalHours ?? compute(cur).totalHours, prio);
+  $('#lessValueBadge').hidden = !less;
+  $('#lessValueBadge').title = LV_TITLE;
+}
+
+async function openEditor(id) {
+  loadClientOptions().then(() => cur && updateClientFlags());
+  $('#formError').hidden = true;
+  $('#saveMsg').textContent = '';
+  if (id) {
+    cur = await api(`${API}/${id}`);
+    cur.items = normalizeItems(cur.items, cur.sheets.length);
+    cur.dwgOverrides = cur.dwgOverrides || {};
+    if (!cur.links?.length) cur.links = [{ label: 'SharePoint folder', url: '' }];
+  } else {
+    const { jobNo } = await api(`${API}/next-no`).catch(() => ({ jobNo: '' }));
+    cur = blankEstimation(jobNo);
+  }
+  dirty = false;
+  fillForm();
+  renderAll();
+}
+
+function fillForm() {
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    if (el.name === 'exclusions') el.value = (cur.exclusions || []).join('\n');
+    else if (el.name === 'deliverables') el.checked = (cur.deliverables || []).includes(el.value);
+    else if (el.type === 'date') el.value = toInputDate(cur[el.name]);
+    else el.value = cur[el.name] ?? '';
+  }
+  $('#editorTitle').textContent = cur._id ? `${cur.jobNo} ${cur.projectName}` : 'New Estimation';
+  $('#excelBtn').disabled = !cur._id;
+  $('#emailBtn').disabled = !cur._id;
+  updateDueInfo();
+}
+
+function updateDueInfo() {
+  const due = dueInfo(cur.dueDate, cur.status);
+  $('#dueInfo').innerHTML = due ? `<span class="due ${due.cls}">${due.text}</span>` : '';
+}
+
+function renderAll() {
+  renderChart();
+  renderDwgs();
+  renderExtras();
+  renderDesc('structDescriptions');
+  renderDesc('miscDescriptions');
+  renderLinks();
+  updateComputed();
+}
+
+const isUrl = u => /^https?:\/\//i.test(u || '');
+
+function renderLinks() {
+  $('#linkRows').innerHTML = cur.links.map((l, k) => `<div class="link-row">
+      <input data-link="${k}" data-f="label" value="${esc(l.label)}" placeholder="Label (e.g. Submission documents)" />
+      <input data-link="${k}" data-f="url" type="url" value="${esc(l.url)}" placeholder="https://yourcompany.sharepoint.com/sites/…" />
+      <a class="btn small${isUrl(l.url) ? '' : ' disabled'}" data-open="${k}" href="${esc(l.url) || '#'}" target="_blank" rel="noopener">Open</a>
+      <button type="button" class="x" data-del-link="${k}" title="Remove">×</button></div>`).join('')
+    || '<p class="sub">No links yet</p>';
+}
+
+// ---------- Chart grid ----------
+function renderChart() {
+  const sheets = cur.sheets;
+  const head = `<thead><tr>
+      <th class="sticky">SHEET NO.</th>
+      <th class="rate">Rate<div class="sub">min / div</div></th>
+      ${sheets.map((s, i) => `<th class="sheet">
+          <input class="sheet-name" data-sheet="${i}" value="${esc(s)}" placeholder="Sheet ${i + 1}" />
+          <button type="button" class="x" data-del-sheet="${i}" title="Remove column">×</button></th>`).join('')}
+      <th class="num tot">TOTAL</th><th class="num hrs">HRS REQ'D</th></tr></thead>`;
+  const body = cur.items
+    .map((it, r) => `<tr>
+      <th class="sticky">${esc(it.name)}</th>
+      <td class="rate">${it.minutes === null ? '<span class="sub">hrs</span>'
+        : `<input type="number" min="0" step="any" data-rate="${r}" data-f="minutes" value="${it.minutes}" />/<input type="number" min="1" step="any" data-rate="${r}" data-f="divisor" value="${it.divisor}" />`}</td>
+      ${sheets.map((_, c) => `<td><input type="number" min="0" step="any" class="cnt" data-r="${r}" data-c="${c}" value="${it.counts[c] || ''}" /></td>`).join('')}
+      <td class="num tot" id="tot-${it.key}"></td><td class="num hrs" id="hrs-${it.key}"></td></tr>`)
+    .join('');
+  const foot = `<tfoot><tr><th class="sticky">TOTAL</th><td></td>${sheets.map((_, c) => `<td class="num" id="colTot-${c}"></td>`).join('')}
+      <td class="num tot" id="grandCount"></td><td class="num hrs" id="grandHours"></td></tr></tfoot>`;
+  $('#chart').innerHTML = head + `<tbody>${body}</tbody>` + foot;
+  $('#addSheetBtn').disabled = sheets.length >= MAX_SHEETS;
+}
+
+function renderDwgs() {
+  $('#dwgTable').innerHTML = `
+    <thead><tr><th class="sticky">TYPE</th>${DWG_TYPES.map(d => `<th>${d.label}</th>`).join('')}<th>TOTAL</th></tr></thead>
+    <tbody>
+      <tr><th class="sticky">Calculated</th>${DWG_TYPES.map(d => `<td class="num" id="dwgCalc-${d.key}">${d.parts ? '' : '<span class="sub">manual</span>'}</td>`).join('')}<td></td></tr>
+      <tr><th class="sticky">No Dwgs</th>${DWG_TYPES.map(d => {
+        const v = cur.dwgOverrides[d.key];
+        return `<td><input type="number" min="0" step="any" data-dwg="${d.key}" value="${v ?? ''}" placeholder="${d.parts ? 'auto' : '0'}" /></td>`;
+      }).join('')}<td class="num"><strong id="dwgTotal"></strong></td></tr>
+    </tbody>`;
+}
+
+function renderExtras() {
+  $('#archRows').innerHTML = [0, 1, 2, 3].map(k => `<div class="pair">
+      <input data-arch="${k}" data-f="ref" value="${esc(cur.arch[k]?.ref)}" placeholder="Ref" />
+      <input data-arch="${k}" data-f="description" value="${esc(cur.arch[k]?.description)}" placeholder="Description" /></div>`).join('');
+  for (const key of ['span', 'weight']) {
+    $(`#${key}Rows`).innerHTML = [0, 1, 2].map(k => `<input class="band band${k}" data-list="${key}" data-k="${k}" value="${esc(cur[key][k])}" />`).join('');
+  }
+}
+
+function renderDesc(key) {
+  const rows = cur[key];
+  $(`#${key}`).innerHTML = `<thead><tr><th style="width:90px">Qty</th><th>Description</th><th>Notes</th><th style="width:80px">Heading</th><th style="width:40px"></th></tr></thead>
+    <tbody>${rows.map((d, k) => `<tr class="${d.heading ? 'heading' : ''}">
+      <td><input data-desc="${key}" data-k="${k}" data-f="qty" value="${esc(d.qty)}" /></td>
+      <td><input data-desc="${key}" data-k="${k}" data-f="description" value="${esc(d.description)}" /></td>
+      <td><input data-desc="${key}" data-k="${k}" data-f="notes" value="${esc(d.notes)}" /></td>
+      <td class="center"><input type="checkbox" data-desc="${key}" data-k="${k}" data-f="heading" ${d.heading ? 'checked' : ''} /></td>
+      <td><button type="button" class="x" data-del-desc="${key}" data-k="${k}">×</button></td></tr>`).join('')
+      || `<tr><td colspan="5" class="sub center">No lines yet</td></tr>`}</tbody>`;
+}
+
+// ---------- Live totals ----------
+function updateComputed() {
+  const c = compute(cur);
+  for (const it of c.items) {
+    $(`#tot-${it.key}`).textContent = c.totals[it.key] ? fmt(c.totals[it.key]) : '';
+    $(`#hrs-${it.key}`).textContent = c.hours[it.key] ? fmt(c.hours[it.key]) : '';
+  }
+  cur.sheets.forEach((_, i) => {
+    const s = c.items.reduce((a, it) => a + (+it.counts[i] || 0), 0);
+    $(`#colTot-${i}`).textContent = s ? fmt(s) : '';
+  });
+  $('#grandCount').textContent = fmt(c.totalCount);
+  $('#grandHours').textContent = fmt(c.totalHours);
+  for (const d of DWG_TYPES) if (d.parts) {
+    const auto = d.parts.reduce((a, [k, div]) => a + c.totals[k] / div, 0);
+    $(`#dwgCalc-${d.key}`).textContent = fmt(auto);
+  }
+  $('#dwgTotal').textContent = fmt(c.totalDwgs);
+  updateClientFlags(c.totalHours);
+  $('#quotedTonnage').placeholder = `${Math.round(c.tonnage)} (calculated)`;
+  $('#summary').innerHTML = `
+    <div class="stat"><div class="label">Total Hrs Req'd</div><div class="value">${fmt(c.totalHours)}</div></div>
+    <div class="stat"><div class="label">Hours per Tonnage</div><div class="value">
+      <input type="number" id="hrsPerTon" min="0.01" step="any" value="${cur.hoursPerTon ?? DEFAULT_HRS_PER_TON}" /></div></div>
+    <div class="stat accent"><div class="label">Tonnage Expected</div><div class="value">${fmt(c.tonnage)} t</div></div>
+    <div class="stat"><div class="label">Total No. Dwgs</div><div class="value">${fmt(c.totalDwgs)}</div></div>
+    <div class="stat"><div class="label">Time Taken per Dwg</div><div class="value">${fmt(c.timePerDwg)} hrs</div></div>`;
+}
+
+// ---------- Input handling ----------
+form.addEventListener('input', ev => {
+  const el = ev.target;
+  const d = el.dataset;
+  dirty = true;
+  $('#saveMsg').textContent = '';
+  if (d.r !== undefined) cur.items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value;
+  else if (d.rate !== undefined) cur.items[+d.rate][d.f] = el.value === '' ? 0 : +el.value;
+  else if (d.sheet !== undefined) { cur.sheets[+d.sheet] = el.value; return; }
+  else if (d.dwg) {
+    if (el.value === '') delete cur.dwgOverrides[d.dwg];
+    else cur.dwgOverrides[d.dwg] = +el.value;
+  } else if (el.id === 'hrsPerTon') {
+    cur.hoursPerTon = +el.value || DEFAULT_HRS_PER_TON;
+    // re-render summary without losing focus: update other cards only
+    const c = compute(cur);
+    const vals = $('#summary').querySelectorAll('.value');
+    vals[2].textContent = fmt(c.tonnage) + ' t';
+    return;
+  } else if (d.arch !== undefined) { (cur.arch[+d.arch] ||= {})[d.f] = el.value; return; }
+  else if (d.list) { cur[d.list][+d.k] = el.value; return; }
+  else if (d.link !== undefined) {
+    cur.links[+d.link][d.f] = el.value;
+    if (d.f === 'url') {
+      const a = $(`#linkRows a[data-open="${d.link}"]`);
+      a.href = el.value || '#';
+      a.classList.toggle('disabled', !isUrl(el.value));
+    }
+    return;
+  }
+  else if (d.desc) {
+    const row = cur[d.desc][+d.k];
+    row[d.f] = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.type === 'checkbox') el.closest('tr').classList.toggle('heading', el.checked);
+    return;
+  } else if (el.name) {
+    if (el.name === 'exclusions') cur.exclusions = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+    else if (el.name === 'deliverables') cur.deliverables = [...form.querySelectorAll('input[name=deliverables]:checked')].map(i => i.value);
+    else if (el.type === 'number') cur[el.name] = el.value === '' ? null : +el.value;
+    else cur[el.name] = el.value;
+    if (el.name === 'dueDate' || el.name === 'status') updateDueInfo();
+    if (el.name === 'clientName') updateClientFlags();
+    return;
+  }
+  updateComputed();
+});
+
+// Arrow-key / Enter navigation in the quantity grid
+$('#chart').addEventListener('keydown', ev => {
+  const d = ev.target.dataset;
+  if (d.r === undefined) return;
+  const m = { ArrowUp: [-1, 0], ArrowDown: [1, 0], Enter: [1, 0] }[ev.key];
+  if (!m) return;
+  ev.preventDefault();
+  const next = $(`#chart input[data-r="${+d.r + m[0]}"][data-c="${+d.c + m[1]}"]`);
+  if (next) { next.focus(); next.select(); }
+});
+
+form.addEventListener('click', ev => {
+  const d = ev.target.dataset;
+  if (d.delSheet !== undefined) {
+    const i = +d.delSheet;
+    const used = cur.items.some(it => +it.counts[i]);
+    if (used && !confirm(`Remove column "${cur.sheets[i] || 'Sheet ' + (i + 1)}" and its quantities?`)) return;
+    cur.sheets.splice(i, 1);
+    cur.items.forEach(it => it.counts.splice(i, 1));
+    dirty = true;
+    renderChart(); updateComputed();
+  } else if (d.add) {
+    cur[d.add].push({ qty: '', description: '', notes: '', heading: false });
+    dirty = true;
+    renderDesc(d.add);
+    $(`#${d.add} tbody tr:last-child input[data-f="qty"]`)?.focus();
+  } else if (d.delLink !== undefined) {
+    cur.links.splice(+d.delLink, 1);
+    dirty = true;
+    renderLinks();
+  } else if (d.open !== undefined && ev.target.classList.contains('disabled')) {
+    ev.preventDefault();
+  } else if (d.delDesc) {
+    cur[d.delDesc].splice(+d.k, 1);
+    dirty = true;
+    renderDesc(d.delDesc);
+  }
+});
+
+$('#addLinkBtn').onclick = () => {
+  cur.links.push({ label: '', url: '' });
+  dirty = true;
+  renderLinks();
+  $(`#linkRows input[data-link="${cur.links.length - 1}"][data-f="url"]`).focus();
+};
+
+$('#addSheetBtn').onclick = () => {
+  if (cur.sheets.length >= MAX_SHEETS) return;
+  cur.sheets.push('');
+  cur.items.forEach(it => it.counts.push(0));
+  dirty = true;
+  renderChart(); updateComputed();
+  $(`#chart input[data-sheet="${cur.sheets.length - 1}"]`).focus();
+};
+
+async function save() {
+  $('#formError').hidden = true;
+  if (!form.reportValidity()) return false;
+  const body = { ...cur, sheets: cur.sheets.map(s => s.trim()) };
+  try {
+    const saved = cur._id
+      ? await api(`${API}/${cur._id}`, { method: 'PUT', body: JSON.stringify(body) })
+      : await api(API, { method: 'POST', body: JSON.stringify(body) });
+    const wasNew = !cur._id;
+    cur = saved;
+    cur.items = normalizeItems(cur.items, cur.sheets.length);
+    cur.dwgOverrides = cur.dwgOverrides || {};
+    dirty = false;
+    $('#saveMsg').textContent = `Saved ${new Date().toLocaleTimeString()}`;
+    if (wasNew) { history.replaceState(null, '', `#/edit/${cur._id}`); lastHash = location.hash; }
+    $('#editorTitle').textContent = `${cur.jobNo} ${cur.projectName}`;
+    $('#excelBtn').disabled = false;
+    $('#emailBtn').disabled = false;
+    loadClientOptions().then(() => updateClientFlags()); // a newly typed client is now in the list
+    if (!cur.links?.length) cur.links = [{ label: 'SharePoint folder', url: '' }];
+    renderLinks();
+    return true;
+  } catch (err) {
+    $('#formError').textContent = err.message;
+    $('#formError').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return false;
+  }
+}
+
+$('#saveBtn').onclick = save;
+$('#excelBtn').onclick = async () => {
+  if (dirty && !(await save())) return;
+  location.href = `${API}/${cur._id}/excel`;
+};
+document.addEventListener('keydown', ev => {
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === 's' && !$('#editorView').hidden) { ev.preventDefault(); save(); }
+});
+
+// =====================================================================
+// REPLY EMAIL
+// =====================================================================
+const emailDialog = $('#emailDialog');
+const pref = {
+  get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+let currentEmail = null;
+
+function emailOptions() {
+  return {
+    greeting: $('#emailGreeting').value,
+    includeLinks: $('#emailLinks').checked,
+    signature: $('#emailSignature').value.trim(),
+  };
+}
+
+function refreshEmail() {
+  currentEmail = window.EstEmail.build(cur, compute(cur).tonnage, emailOptions());
+  $('#emailPreview').innerHTML = currentEmail.html;
+}
+
+$('#emailBtn').onclick = async () => {
+  if (dirty && !(await save())) return;
+  $('#emailGreeting').value = pref.get('email.greeting', 'Hi sir,');
+  $('#emailSignature').value = pref.get('email.signature', '');
+  $('#emailLinks').checked = pref.get('email.links', '0') === '1';
+  $('#emailLinks').disabled = !cur.links.some(l => l.url);
+  $('#emailMsg').textContent = '';
+  refreshEmail();
+  emailDialog.showModal();
+};
+
+['emailGreeting', 'emailSignature', 'emailLinks'].forEach(id => $(`#${id}`).addEventListener('input', () => {
+  pref.set('email.greeting', $('#emailGreeting').value);
+  pref.set('email.signature', $('#emailSignature').value);
+  pref.set('email.links', $('#emailLinks').checked ? '1' : '0');
+  refreshEmail();
+}));
+
+$('#emailClose').onclick = () => emailDialog.close();
+$('#emailExcelBtn').onclick = () => { location.href = `${API}/${cur._id}/excel`; };
+
+$('#emailCopyBtn').onclick = async () => {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([currentEmail.html], { type: 'text/html' }),
+      'text/plain': new Blob([currentEmail.text], { type: 'text/plain' }),
+    })]);
+  } catch {
+    // Fallback: copy the rendered preview as a selection
+    const range = document.createRange();
+    range.selectNodeContents($('#emailPreview'));
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+  }
+  $('#emailMsg').textContent = 'Copied — paste it into your Outlook reply.';
+};
+
+$('#emailMarkBtn').onclick = async () => {
+  cur.status = 'Submitted';
+  form.status.value = 'Submitted';
+  dirty = true;
+  if (await save()) $('#emailMsg').textContent = 'Status set to Submitted.';
+};
+
+// =====================================================================
+// CLIENTS VIEW
+// =====================================================================
+async function loadClients() {
+  $('#lvHours').textContent = LESS_VALUE_HOURS;
+  const q = $('#clientSearch').value.trim();
+  let list = await api(`${CLIENTS_API}${q ? '?q=' + encodeURIComponent(q) : ''}`);
+  const f = $('#clientFilter').value;
+  if (f) list = list.filter(c => c.priority === (f === '1'));
+  $('#clientRows').innerHTML = list.map(c => `<tr class="${c.priority ? 'row-prio' : ''}">
+      <td><button class="btn small ${c.priority ? 'prio-on' : 'prio-off'}" data-prio="${c.priority ? 0 : 1}" data-id="${c._id}"
+        title="${c.priority ? 'Click to remove priority' : 'Click to mark as priority'}">${c.priority ? '★ Priority' : '☆ Mark'}</button></td>
+      <td><input class="client-name" data-rename="${c._id}" value="${esc(c.name)}" data-orig="${esc(c.name)}" /></td>
+      <td class="num">${c.estimations}</td>
+      <td class="actions-cell"><button class="btn small danger" data-del-client="${c._id}" data-name="${esc(c.name)}">Delete</button></td>
+    </tr>`).join('');
+  $('#clientEmpty').hidden = list.length > 0;
+}
+
+$('#clientRows').addEventListener('click', async ev => {
+  const d = ev.target.dataset;
+  try {
+    if (d.prio) {
+      await api(`${CLIENTS_API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ priority: d.prio === '1' }) });
+      loadClients();
+    } else if (d.delClient && confirm(`Delete client "${d.name}" from the list? (Estimations are not affected)`)) {
+      await api(`${CLIENTS_API}/${d.delClient}`, { method: 'DELETE' });
+      loadClients();
+    }
+  } catch (err) { alert(err.message); }
+});
+
+$('#clientRows').addEventListener('change', async ev => {
+  const id = ev.target.dataset.rename;
+  if (!id) return;
+  const name = ev.target.value.trim();
+  if (!name || name === ev.target.dataset.orig) { ev.target.value = ev.target.dataset.orig; return; }
+  try {
+    await api(`${CLIENTS_API}/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+    ev.target.dataset.orig = name;
+    $('#clientMsg').textContent = `Renamed to "${name}"`;
+  } catch (err) { alert(err.message); ev.target.value = ev.target.dataset.orig; }
+});
+
+$('#addClientBtn').onclick = async () => {
+  const name = $('#newClientName').value.trim();
+  if (!name) return $('#newClientName').focus();
+  try {
+    await api(CLIENTS_API, { method: 'POST', body: JSON.stringify({ name, priority: $('#newClientPriority').checked }) });
+    $('#newClientName').value = '';
+    $('#newClientPriority').checked = false;
+    $('#clientMsg').textContent = `Added "${name}"`;
+    loadClients();
+  } catch (err) { $('#clientMsg').textContent = ''; alert(err.message); }
+};
+$('#newClientName').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('#addClientBtn').click(); });
+
+$('#importBtn').onclick = async () => {
+  const file = $('#importFile').files[0];
+  if (!file) return alert('Choose an Excel (.xlsx) or CSV file first.');
+  $('#importMsg').textContent = 'Importing…';
+  try {
+    const res = await fetch(`${CLIENTS_API}/import?priority=${$('#importPriority').checked ? 1 : 0}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
+    });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || 'Import failed');
+    $('#importMsg').textContent = `Imported: ${r.added} added, ${r.updated} priority updated, ${r.skipped} skipped (already listed / blank).`;
+    $('#importFile').value = '';
+    loadClients();
+  } catch (err) { $('#importMsg').textContent = ''; alert(err.message); }
+};
+
+let clientSearchTimer;
+$('#clientSearch').oninput = () => { clearTimeout(clientSearchTimer); clientSearchTimer = setTimeout(loadClients, 250); };
+$('#clientFilter').onchange = loadClients;
+
+// =====================================================================
+// ROUTER
+// =====================================================================
+async function route() {
+  const hash = location.hash || '#/';
+  const editing = hash.startsWith('#/new') || hash.startsWith('#/edit/');
+  const clients = hash.startsWith('#/clients');
+  $('#listView').hidden = editing || clients;
+  $('#editorView').hidden = !editing;
+  $('#clientsView').hidden = !clients;
+  $('#newBtn').hidden = editing;
+  $('#navEst').classList.toggle('active', !clients);
+  $('#navClients').classList.toggle('active', clients);
+  try {
+    if (hash.startsWith('#/edit/')) await openEditor(hash.slice(7));
+    else if (hash.startsWith('#/new')) await openEditor(null);
+    else if (clients) await loadClients();
+    else await loadList();
+  } catch (err) {
+    alert(err.message);
+    location.hash = '#/';
+  }
+  window.scrollTo(0, 0);
+}
+
+let lastHash = location.hash;
+window.addEventListener('hashchange', ev => {
+  if (dirty && !$('#editorView').hidden && !confirm('You have unsaved changes. Leave anyway?')) {
+    history.replaceState(null, '', lastHash);
+    return;
+  }
+  lastHash = location.hash;
+  dirty = false;
+  route();
+});
+window.addEventListener('beforeunload', ev => { if (dirty) ev.preventDefault(); });
+
+const statusOpts = STATUSES.map(s => `<option>${s}</option>`).join('');
+$('#statusFilter').insertAdjacentHTML('beforeend', statusOpts);
+$('#statusSelect').innerHTML = statusOpts;
+$('#statusFilter').onchange = loadList;
+$('#valueFilter').onchange = loadList;
+$('#fromDate').onchange = loadList;
+$('#toDate').onchange = loadList;
+$('#clearFilters').onclick = () => {
+  ['#search', '#statusFilter', '#valueFilter', '#fromDate', '#toDate'].forEach(sel => { $(sel).value = ''; });
+  loadList();
+};
+$('#exportBtn').onclick = () => { location.href = `${API}/export?${listParams()}`; };
+let searchTimer;
+$('#search').placeholder = 'Search No., project, client, done by, scope…';
+$('#search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadList, 250); };
+
+route();
