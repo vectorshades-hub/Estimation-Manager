@@ -1,0 +1,1132 @@
+[
+ {
+  "_id": "6ac5266ed22ce0f285b3f92c",
+  "projectName": "hhh",
+  "clientName": "hhhh",
+  "contactPerson": "",
+  "contactEmail": "",
+  "contactPhone": "",
+  "location": "",
+  "projectType": "",
+  "scope": "",
+  "approxTonnage": 0,
+  "ratePerTon": 0,
+  "estimatedHours": 0,
+  "currency": "USD",
+  "receivedDate": "2026-10-06T00:00:00.000Z",
+  "dueDate": null,
+  "estimator": "",
+  "status": "Received",
+  "priority": "Medium",
+  "notes": "",
+  "createdAt": "2026-10-06T16:48:47.001Z",
+  "updatedAt": "2026-10-07T17:19:43.737Z",
+  "estimationNo": "EST-2026-0001",
+  "__v": 1,
+  "pages": [
+   {
+    "name": "Page 1",
+    "sheets": [],
+    "items": [
+     {
+      "key": "beam11",
+      "name": "Beam 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "beam12",
+      "name": "Beam 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "beam13",
+      "name": "Beam 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "beam14",
+      "name": "Beam 1/4",
+      "minutes": 40,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "col11",
+      "name": "Column 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "col12",
+      "name": "Column 1/2",
+      "minutes": 150,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "col13",
+      "name": "Column 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "col14",
+      "name": "Column 1/4",
+      "minutes": 40,
+      "divisor": 45,
+      "counts": []
+     },
+     {
+      "key": "vb11",
+      "name": "Vbrace 1/1",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "vb13",
+      "name": "Vbrace 1/3",
+      "minutes": 90,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "vb14",
+      "name": "Vbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "vb12",
+      "name": "Vbrace 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "hb14",
+      "name": "Hbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "hb13",
+      "name": "Hbrace 1/3",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "truss",
+      "name": "Truss",
+      "minutes": 3000,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "hrail",
+      "name": "Hrail 1/2",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "wrail",
+      "name": "W-rail 1/4",
+      "minutes": 240,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "ladderCage",
+      "name": "Ladder Cage",
+      "minutes": 480,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "ladderNoCage",
+      "name": "Ladder no cage",
+      "minutes": 300,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "gates",
+      "name": "Gates",
+      "minutes": 840,
+      "divisor": 85,
+      "counts": []
+     },
+     {
+      "key": "stringer",
+      "name": "Stringer Assembly",
+      "minutes": 600,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "embeds",
+      "name": "Embeds",
+      "minutes": null,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "connection",
+      "name": "Connection",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "roofOpening",
+      "name": "roof opening",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "outrigger",
+      "name": "Outrigger",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": []
+     },
+     {
+      "key": "misc",
+      "name": "Misc .in Hrs",
+      "minutes": null,
+      "divisor": 60,
+      "counts": []
+     }
+    ],
+    "dwgOverrides": {},
+    "hoursPerTon": 2.5,
+    "additionalHoursFor": "",
+    "arch": [],
+    "span": [],
+    "weight": []
+   }
+  ],
+  "date": "2026-10-07T17:19:43.722Z",
+  "deliverables": [],
+  "exclusions": [],
+  "links": [],
+  "miscDescriptions": [],
+  "pageCount": 1,
+  "proposalExclusions": [
+   "Any structural steel not shown, sized or dimensioned on the structural / architectural drawings.",
+   "Joist details, deck, and foundation rebar details.",
+   "Engineering"
+  ],
+  "sheetCount": 0,
+  "structDescriptions": [],
+  "totalCount": 0,
+  "totalDwgs": 0,
+  "totalHours": 0
+ },
+ {
+  "_id": "6ac52924fa7d2e2a340ed9ee",
+  "jobNo": "26-149",
+  "projectName": "AURORA ACC",
+  "date": "2026-10-06T00:00:00.000Z",
+  "doneBy": "Aiswarya/Akhil.s",
+  "clientName": "Test Client",
+  "status": "Submitted",
+  "structDescriptions": [
+   {
+    "description": "DUCT SUPPORT FRAMING",
+    "notes": "DWG 2816",
+    "heading": true
+   },
+   {
+    "qty": "2",
+    "description": "BEAMS",
+    "heading": false
+   },
+   {
+    "qty": "2",
+    "description": "POSTS",
+    "heading": false
+   },
+   {
+    "qty": "2",
+    "description": "SUPPORT POST",
+    "heading": false
+   },
+   {
+    "qty": "6",
+    "description": "BRACES",
+    "heading": false
+   },
+   {
+    "heading": false
+   },
+   {
+    "description": "STAIR FRAMING",
+    "notes": "DWG 2817 6/18,7/18",
+    "heading": true
+   },
+   {
+    "qty": "120",
+    "description": "BRACES",
+    "heading": false
+   }
+  ],
+  "miscDescriptions": [
+   {
+    "qty": "8",
+    "description": "CAGE LADDERS",
+    "notes": "DWG 001",
+    "heading": false
+   },
+   {
+    "qty": "12",
+    "description": "GUARDRAILS",
+    "notes": "DWG 001",
+    "heading": false
+   },
+   {
+    "qty": "1",
+    "description": "STAIR W/ RAILINGS",
+    "notes": "DWG 001",
+    "heading": false
+   },
+   {
+    "qty": "7",
+    "description": "STAIRS W/ RAILINGS",
+    "notes": "DWG 2817 8/18",
+    "heading": false
+   },
+   {
+    "qty": "7",
+    "description": "STAIRS W/ RAILINGS",
+    "notes": "DWG 2817 17/18",
+    "heading": false
+   }
+  ],
+  "exclusions": [
+   "Connection design",
+   "Erection drawings"
+  ],
+  "totalCount": 247,
+  "totalHours": 799.56,
+  "totalDwgs": 223.83,
+  "approxTonnage": 319.82,
+  "createdAt": "2026-10-06T17:00:20.857Z",
+  "updatedAt": "2026-10-07T17:19:43.748Z",
+  "__v": 2,
+  "assumptions": "Steel design completed by client",
+  "complexity": "Medium",
+  "contactPerson": "",
+  "deliverables": [
+   "Shop Drawings",
+   "Erection Drawings",
+   "CNC Files",
+   "Other files"
+  ],
+  "links": [],
+  "remark": "Nil",
+  "scope": "Mainsteel and Misc",
+  "submittalWeeks": 2,
+  "pages": [
+   {
+    "name": "Page 1",
+    "sheets": [
+     "DWG 2816",
+     "DWG 2817 6/18,7/18",
+     "DWG 001",
+     "DWG 2817 8/18",
+     "DWG 2817 17/18"
+    ],
+    "items": [
+     {
+      "key": "beam11",
+      "name": "Beam 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam12",
+      "name": "Beam 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam13",
+      "name": "Beam 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       2,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam14",
+      "name": "Beam 1/4",
+      "minutes": 40,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col11",
+      "name": "Column 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col12",
+      "name": "Column 1/2",
+      "minutes": 150,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col13",
+      "name": "Column 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col14",
+      "name": "Column 1/4",
+      "minutes": 40,
+      "divisor": 45,
+      "counts": [
+       4,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb11",
+      "name": "Vbrace 1/1",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       6,
+       120,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb13",
+      "name": "Vbrace 1/3",
+      "minutes": 90,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb14",
+      "name": "Vbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb12",
+      "name": "Vbrace 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hb14",
+      "name": "Hbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hb13",
+      "name": "Hbrace 1/3",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "truss",
+      "name": "Truss",
+      "minutes": 3000,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hrail",
+      "name": "Hrail 1/2",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       13,
+       7,
+       7
+      ]
+     },
+     {
+      "key": "wrail",
+      "name": "W-rail 1/4",
+      "minutes": 240,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       1,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "ladderCage",
+      "name": "Ladder Cage",
+      "minutes": 480,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       8,
+       7,
+       7
+      ]
+     },
+     {
+      "key": "ladderNoCage",
+      "name": "Ladder no cage",
+      "minutes": 300,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "gates",
+      "name": "Gates",
+      "minutes": 840,
+      "divisor": 85,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "stringer",
+      "name": "Stringer Assembly",
+      "minutes": 600,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       1,
+       7,
+       7
+      ]
+     },
+     {
+      "key": "embeds",
+      "name": "Embeds",
+      "minutes": null,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "connection",
+      "name": "Connection",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "roofOpening",
+      "name": "roof opening",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "outrigger",
+      "name": "Outrigger",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "misc",
+      "name": "Misc .in Hrs",
+      "minutes": null,
+      "divisor": 60,
+      "counts": [
+       10,
+       10,
+       10,
+       10,
+       10
+      ]
+     }
+    ],
+    "dwgOverrides": {
+     "AB": 1,
+     "ERE": 40
+    },
+    "hoursPerTon": 2.5,
+    "additionalHoursFor": "",
+    "arch": [],
+    "span": [],
+    "weight": []
+   }
+  ],
+  "pageCount": 1,
+  "proposalExclusions": [
+   "Any structural steel not shown, sized or dimensioned on the structural / architectural drawings.",
+   "Joist details, deck, and foundation rebar details.",
+   "Engineering"
+  ],
+  "sheetCount": 5
+ },
+ {
+  "_id": "6ac52f389037aba829c00492",
+  "jobNo": "1",
+  "projectName": "ted",
+  "date": "2026-10-06T00:00:00.000Z",
+  "doneBy": "",
+  "clientName": "ttt",
+  "dueDate": "2026-10-07T00:00:00.000Z",
+  "status": "Submitted",
+  "scope": "Mainsteel, Misc and Stairs",
+  "complexity": "Medium",
+  "deliverables": [
+   "Shop Drawings",
+   "Erection Drawings",
+   "CNC Files",
+   "Other files"
+  ],
+  "coordinationNeeded": "",
+  "durationWeeks": null,
+  "quotedTonnage": null,
+  "assumptions": "Steel design completed by client",
+  "remark": "Nil",
+  "links": [
+   {
+    "label": "SharePoint folder",
+    "url": "https://outlook.cloud.microsoft/mail/sentitems/id/AAQkADNmMGFhNDM4LTliYmYtNDdkYy1hZDhmLWY1NWE4YjdhZDZlNAAQACNwHzkLjFxHpqsNj0%2Bl6WE%3D"
+   }
+  ],
+  "structDescriptions": [],
+  "miscDescriptions": [],
+  "exclusions": [
+   "Design calculations",
+   "connection design (unless specified)"
+  ],
+  "totalCount": 10,
+  "totalHours": 60,
+  "totalDwgs": 10,
+  "approxTonnage": 24,
+  "createdAt": "2026-10-06T17:26:16.651Z",
+  "updatedAt": "2026-10-07T17:36:33.347Z",
+  "__v": 2,
+  "pages": [
+   {
+    "name": "Page 1",
+    "sheets": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "items": [
+     {
+      "key": "beam11",
+      "name": "Beam 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam12",
+      "name": "Beam 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam13",
+      "name": "Beam 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "beam14",
+      "name": "Beam 1/4",
+      "minutes": 40,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col11",
+      "name": "Column 1/1",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       10,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col12",
+      "name": "Column 1/2",
+      "minutes": 150,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col13",
+      "name": "Column 1/3",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "col14",
+      "name": "Column 1/4",
+      "minutes": 40,
+      "divisor": 45,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb11",
+      "name": "Vbrace 1/1",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb13",
+      "name": "Vbrace 1/3",
+      "minutes": 90,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb14",
+      "name": "Vbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "vb12",
+      "name": "Vbrace 1/2",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hb14",
+      "name": "Hbrace 1/4",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hb13",
+      "name": "Hbrace 1/3",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "truss",
+      "name": "Truss",
+      "minutes": 3000,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "hrail",
+      "name": "Hrail 1/2",
+      "minutes": 360,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "wrail",
+      "name": "W-rail 1/4",
+      "minutes": 240,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "ladderCage",
+      "name": "Ladder Cage",
+      "minutes": 480,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "ladderNoCage",
+      "name": "Ladder no cage",
+      "minutes": 300,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "gates",
+      "name": "Gates",
+      "minutes": 840,
+      "divisor": 85,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "stringer",
+      "name": "Stringer Assembly",
+      "minutes": 600,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "embeds",
+      "name": "Embeds",
+      "minutes": null,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "connection",
+      "name": "Connection",
+      "minutes": 120,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "roofOpening",
+      "name": "roof opening",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "outrigger",
+      "name": "Outrigger",
+      "minutes": 60,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "key": "misc",
+      "name": "Misc .in Hrs",
+      "minutes": null,
+      "divisor": 60,
+      "counts": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "dwgOverrides": {},
+    "hoursPerTon": 2.5,
+    "additionalHoursFor": "",
+    "arch": [
+     {},
+     {},
+     {},
+     {}
+    ],
+    "span": [
+     "",
+     "",
+     ""
+    ],
+    "weight": [
+     "",
+     "",
+     ""
+    ]
+   }
+  ],
+  "pageCount": 1,
+  "proposalExclusions": [
+   "Any structural steel not shown, sized or dimensioned on the structural / architectural drawings.",
+   "Joist details, deck, and foundation rebar details.",
+   "Engineering"
+  ],
+  "sheetCount": 5
+ }
+]

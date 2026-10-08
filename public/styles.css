@@ -89,6 +89,8 @@ td.actions-cell { text-align: right; }
 .badge.Won { background: #dff5e6; color: #1b7a3d; }
 .badge.Lost { background: #fde4e1; color: #b23324; }
 .badge.On-Hold { background: #eceff3; color: #555e6e; }
+.badge.No-bid-placed-Less-Value { background: #fff1e6; color: #c25400; }
+.badge.No-bid-placed-Missing-details { background: #fdeaf3; color: #a3245e; }
 
 /* ---------- Editor ---------- */
 .editor-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; }
@@ -170,6 +172,8 @@ table.desc { width: 100%; border-collapse: collapse; }
 .desc th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 4px; }
 .desc td { padding: 3px 4px; }
 .desc tr.heading input:not([type=checkbox]) { background: var(--xl-grey); font-weight: 700; }
+.desc tr.auto-row td:first-child { box-shadow: inset 3px 0 0 #63a4ff; }
+.desc tr.auto-row input[data-f="qty"] { background: var(--xl-teal); color: #0b4f6c; font-weight: 600; cursor: default; }
 
 /* ---------- Navigation ---------- */
 .topbar { gap: 24px; }
@@ -234,3 +238,165 @@ select.cell-edit.pref { padding: 4px 6px; border-radius: 999px; font-size: 12px;
   font-size: 12px; font-weight: 600; vertical-align: middle; }
 .all-pages { margin-top: 12px; padding: 10px 14px; border-radius: 8px; background: #f1f6ff; border: 1px solid #d3e1fa; font-size: 14px; }
 .all-pages[hidden] { display: none; }
+
+/* ---------- Sign-in ---------- */
+body.signed-out > header, body.signed-out > main { display: none !important; }
+.auth-view { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: linear-gradient(135deg, #12233f 0%, #1f4a86 100%); z-index: 50; }
+.auth-view[hidden] { display: none; }
+.auth-card { background: #fff; border-radius: 12px; padding: 28px 30px; width: min(400px, 100%); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.auth-brand { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); margin-bottom: 6px; }
+.auth-card h2 { margin: 0 0 16px; font-size: 22px; }
+.auth-card form { display: flex; flex-direction: column; gap: 12px; }
+.auth-card form[hidden] { display: none; }
+.auth-card label input { font-size: 15px; padding: 9px 11px; }
+.btn.block { width: 100%; padding: 10px; font-size: 15px; margin-top: 4px; }
+.auth-card .error { margin: 0; }
+
+/* ---------- User menu ---------- */
+.user-menu { position: relative; }
+.user-btn { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: #fff; padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; font-family: inherit; }
+.user-btn:hover { background: rgba(255,255,255,.18); }
+.role-badge { background: #e7eefb; color: #1f5fbf; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+.user-dropdown { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15); min-width: 180px; padding: 4px; z-index: 60; }
+.user-dropdown[hidden] { display: none; }
+.user-dropdown button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 9px 12px; border-radius: 5px;
+  font-size: 14px; cursor: pointer; color: var(--text); font-family: inherit; }
+.user-dropdown button:hover { background: #eef1f6; }
+[data-min-role][hidden] { display: none !important; }
+body.auth-off .user-menu, body.auth-off #navUsers { display: none !important; }
+
+/* ---------- Users page ---------- */
+.add-user { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.add-user input, .add-user select { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+.row-inactive td { color: var(--muted); }
+#auditInfo { margin-left: 4px; }
+dialog#pwDialog { border: none; border-radius: 10px; padding: 0; width: min(420px, 95vw); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+dialog#pwDialog::backdrop { background: rgba(15, 25, 45, .45); }
+#pwForm { display: flex; flex-direction: column; gap: 10px; }
+.auth-card .hint { margin: 0; }
+
+/* ---------- Chart + description lists side by side ---------- */
+.chart-layout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.chart-layout .chart-wrap { flex: 0 1 auto; max-width: 100%; }
+.desc-side { flex: 1 1 520px; min-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+.desc-block { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: #fff; }
+.desc-block .card-head { margin-bottom: 6px; }
+.desc-block h3 { font-size: 14px; }
+.desc-side table.desc input:not([type=checkbox]) { padding: 5px 7px; font-size: 13px; }
+.desc-side .desc td { padding: 2px 3px; }
+@media (max-width: 700px) { .desc-side { min-width: 0; } }
+/* keep the chart compact so the description lists fit beside it */
+.chart-layout .chart th.sheet { padding: 2px 16px 2px 2px; }
+.chart-layout .chart .sheet-name { width: 78px; }
+.chart-layout .chart td input.cnt { min-width: 0; width: 100%; }
+.chart-layout .chart th.sheet, .chart-layout .chart td:has(> input.cnt) { width: 96px; max-width: 96px; }
+.desc-side { flex: 1 1 380px; min-width: 380px; }
+
+/* ---------- Chart = 2.5/4 of the width, scrolls both ways; descriptions use the rest ---------- */
+.chart-layout { flex-wrap: nowrap; }
+.chart-layout .chart-wrap {
+  flex: 0 0 62.5%; max-width: 62.5%; min-width: 0;
+  overflow: auto; max-height: calc(100vh - 140px);   /* horizontal + vertical scroll bars when needed */
+}
+.desc-side { flex: 1 1 0; min-width: 0; }
+/* Keep the column headings, item names and totals visible while scrolling */
+.chart-wrap .chart thead th { position: sticky; top: 0; z-index: 3; background: #f8f9fb; }
+.chart-wrap .chart thead th.sticky { left: 0; z-index: 5; }
+.chart-wrap .chart tfoot td, .chart-wrap .chart tfoot th { position: sticky; bottom: 0; z-index: 3; }
+.chart-wrap .chart tfoot th.sticky { left: 0; z-index: 5; }
+.chart-wrap .chart tbody th.sticky { z-index: 2; }
+@media (max-width: 1000px) {
+  .chart-layout { flex-wrap: wrap; }
+  .chart-layout .chart-wrap { flex-basis: 100%; max-width: 100%; }
+  .desc-side { flex-basis: 100%; }
+}
+
+/* Chart column (2.5/4): page tabs + buttons on top, scrolling chart below */
+.chart-layout .chart-col { flex: 0 0 62.5%; max-width: 62.5%; min-width: 0; }
+.chart-layout .chart-col .chart-wrap { flex: none; max-width: 100%; width: 100%; }
+.chart-col .page-bar { flex-wrap: nowrap; }
+.chart-col .page-tabs { min-width: 0; overflow-x: auto; flex-wrap: nowrap; }
+.chart-col .page-bar .btn.small { white-space: nowrap; }
+.desc-side { padding-top: 37px; } /* line the description tables up with the top of the chart */
+@media (max-width: 1000px) {
+  .chart-layout .chart-col { flex-basis: 100%; max-width: 100%; }
+  .chart-col .page-bar { flex-wrap: wrap; }
+  .desc-side { padding-top: 0; }
+}
+
+/* ---------- Drag and drop description rows ---------- */
+.desc td.drag-handle { cursor: grab; color: #9aa3b2; text-align: center; font-size: 13px; letter-spacing: -2px; user-select: none; padding: 0 2px; }
+.desc td.drag-handle:hover { color: var(--primary); }
+.desc tr.dragging { opacity: .4; }
+.desc tr.drop-above td { box-shadow: inset 0 2px 0 var(--primary); }
+.desc tr.drop-below td { box-shadow: inset 0 -2px 0 var(--primary); }
+.desc tr.auto-row td:first-child { box-shadow: inset 3px 0 0 #63a4ff; }
+
+/* ---------- Editor sections: each box has its own coloured border (3 colours, repeating) ---------- */
+#form > .card { --accent: #1f5fbf; --accent-soft: #eef4ff; border: 2px solid var(--accent); border-top-width: 5px; }
+#form > .card:nth-of-type(3n+2) { --accent: #1b7a3d; --accent-soft: #edf8f0; }
+#form > .card:nth-of-type(3n)   { --accent: #c27c00; --accent-soft: #fff6e5; }
+#form > .card > h3,
+#form > .card > .card-head h3 { color: var(--accent); }
+#form > .card > h3:first-child,
+#form > .card > .card-head:first-child {
+  margin: -16px -18px 14px; padding: 10px 18px; background: var(--accent-soft); border-bottom: 1px solid var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+/* inner boxes (description lists beside the chart) keep a thin neutral border */
+#form .desc-block { border-color: var(--border); }
+
+/* Colours are set per box (the top boxes now sit in a 2-column grid) */
+#form .card { --accent: #1f5fbf; --accent-soft: #eef4ff; border: 2px solid var(--accent); border-top-width: 5px; }
+#form .card.accent-green { --accent: #1b7a3d; --accent-soft: #edf8f0; }
+#form .card.accent-amber { --accent: #c27c00; --accent-soft: #fff6e5; }
+#form .card > h3, #form .card > .card-head h3 { color: var(--accent); }
+#form .card > h3:first-child, #form .card > .card-head:first-child {
+  margin: -16px -18px 14px; padding: 10px 18px; background: var(--accent-soft); border-bottom: 1px solid var(--accent); border-radius: 4px 4px 0 0;
+}
+
+/* Details | Submission Details / Proposal | SharePoint Links */
+.top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.top-grid > .card { margin-bottom: 0; min-width: 0; }
+.top-grid .fields { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.top-grid .fields .wide { grid-column: span 2; }
+@media (max-width: 1100px) { .top-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Chart box + description boxes side by side ---------- */
+.chart-row { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 16px; }
+.chart-row > .chart-card { flex: 0 0 calc(62.5% - 8px); max-width: calc(62.5% - 8px); min-width: 0; margin-bottom: 0; }
+.chart-row > .desc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.chart-row > .desc-col > .card { margin-bottom: 0; }
+.chart-card .chart-wrap { width: 100%; max-width: 100%; overflow: auto; max-height: calc(100vh - 140px); }
+.chart-card .page-bar { flex-wrap: nowrap; }
+.chart-card .page-tabs { min-width: 0; overflow-x: auto; flex-wrap: nowrap; }
+.chart-card .page-bar .btn.small { white-space: nowrap; }
+.chart-card .chart th.sheet { padding: 2px 16px 2px 2px; }
+.chart-card .chart .sheet-name { width: 78px; }
+.chart-card .chart td input.cnt { min-width: 0; width: 100%; }
+.chart-card .chart th.sheet, .chart-card .chart td:has(> input.cnt) { width: 96px; max-width: 96px; }
+.desc-col table.desc input:not([type=checkbox]) { padding: 5px 7px; font-size: 13px; }
+.desc-col .desc td { padding: 2px 3px; }
+@media (max-width: 1000px) {
+  .chart-row { flex-direction: column; }
+  .chart-row > .chart-card, .chart-row > .desc-col { flex-basis: auto; max-width: 100%; width: 100%; }
+}
+
+/* ---------- One border colour for every box (no 3-colour cycle) ---------- */
+#form .card, #form .card.accent-green, #form .card.accent-amber, #form .card.accent-blue { --accent: #1f5fbf; --accent-soft: #eef4ff; }
+
+/* ---------- Descriptions box: Struct. + Misc. in one box ---------- */
+.desc-sub + .desc-sub { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.desc-sub-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.desc-sub-head h4 { margin: 0 !important; font-size: 13px; color: var(--text) !important; text-transform: none !important; }
+
+/* ---------- Plain boxes: thin neutral border, no coloured accents ---------- */
+#form .card, #form .card.accent-green, #form .card.accent-amber, #form .card.accent-blue {
+  --accent: var(--border); --accent-soft: #f6f8fb;
+  border: 1px solid var(--border); border-top-width: 1px;
+}
+#form .card > h3, #form .card > .card-head h3 { color: var(--text); }
+#form .card > h3:first-child, #form .card > .card-head:first-child { border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; }

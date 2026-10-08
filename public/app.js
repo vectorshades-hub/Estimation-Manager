@@ -1,5 +1,7 @@
 const API = '/api/estimations';
-const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold'];
+const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
+// CSS class for a status badge, e.g. 'In Progress' -> 'In-Progress', 'No bid placed - Less Value' -> 'No-bid-placed-Less-Value'
+const statusClass = s => String(s || '').replace(/[^A-Za-z0-9]+/g, '-');
 const { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, compute,
   newPage, normalizePage, computeEstimation } = window.EstCalc;
 const CLIENTS_API = '/api/clients';
@@ -13,7 +15,7 @@ const fmt = (n, d = 2) => Number(n || 0).toLocaleString(undefined, { minimumFrac
 const fmtDate = d => (d ? new Date(d).toLocaleDateString(undefined, { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const toInputDate = d => (d ? new Date(d).toISOString().slice(0, 10) : '');
 const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-const CLOSED = ['Submitted', 'Won', 'Lost'];
+const CLOSED = ['Submitted', 'Won', 'Lost', 'No bid placed - Less Value', 'No bid placed - Missing details'];
 
 // Days from today until the due date: { text, cls } or null when there is no due date.
 // Closed estimations (Submitted / Won / Lost) are shown in neutral grey.
@@ -32,9 +34,120 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 async function api(url, opts = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !url.startsWith('/api/auth/')) {
+    dirty = false;
+    showAuth();
+    throw Object.assign(new Error(data.error || 'Please sign in'), { silent: true });
+  }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
+
+// =====================================================================
+// SIGN-IN, ROLES
+// =====================================================================
+const ROLE_ORDER = ['member', 'team_leader', 'manager', 'admin'];
+const ROLE_NAMES = { member: 'Member', team_leader: 'Team Leader', manager: 'Manager', admin: 'Admin' };
+let me = null; // signed-in user
+
+const can = minRole => !!me && ROLE_ORDER.indexOf(me.role) >= ROLE_ORDER.indexOf(minRole);
+
+// Hide anything marked data-min-role="..." that the current user can't use
+function applyRoleVisibility() {
+  document.querySelectorAll('[data-min-role]').forEach(el => { el.hidden = !can(el.dataset.minRole); });
+}
+
+function showAuth(setupNeeded = false) {
+  me = null;
+  document.body.classList.add('signed-out');
+  $('#authView').hidden = false;
+  $('#loginForm').hidden = setupNeeded;
+  $('#setupForm').hidden = !setupNeeded;
+  (setupNeeded ? $('#setupForm [name=name]') : $('#loginForm [name=username]')).focus();
+}
+
+function signedIn(user) {
+  me = user;
+  document.body.classList.remove('signed-out');
+  $('#authView').hidden = true;
+  $('#userName').textContent = user.name;
+  $('#userRole').textContent = ROLE_NAMES[user.role] || user.role;
+  applyRoleVisibility();
+  route();
+}
+
+async function boot() {
+  try {
+    const status = await api('/api/auth/status');
+    // Sign-in switched off (AUTH_ENABLED=false): full access, no user menu
+    document.body.classList.toggle('auth-off', !status.authEnabled);
+    if (!status.authEnabled) return signedIn({ name: '', role: 'admin' });
+    if (status.setupNeeded) return showAuth(true);
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return showAuth(false);
+    signedIn(await res.json());
+  } catch (err) {
+    alert('Cannot reach the server: ' + err.message);
+  }
+}
+
+const formData = f => Object.fromEntries(new FormData(f).entries());
+function showError(el, msg) { el.textContent = msg; el.hidden = !msg; }
+
+$('#loginForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  showError($('#loginError'), '');
+  try {
+    const user = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(formData(ev.target)) });
+    ev.target.reset();
+    signedIn(user);
+  } catch (err) { showError($('#loginError'), err.message); }
+});
+
+$('#setupForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const data = formData(ev.target);
+  if (data.password !== data.confirm) return showError($('#setupError'), 'Passwords do not match');
+  try {
+    const user = await api('/api/auth/setup', { method: 'POST', body: JSON.stringify(data) });
+    ev.target.reset();
+    signedIn(user);
+  } catch (err) { showError($('#setupError'), err.message); }
+});
+
+$('#userBtn').onclick = ev => { ev.stopPropagation(); $('#userDropdown').hidden = !$('#userDropdown').hidden; };
+document.addEventListener('click', () => { $('#userDropdown').hidden = true; });
+$('#logoutBtn').onclick = async () => {
+  if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
+  dirty = false;
+  await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  showAuth(false);
+};
+
+// Change own password, or (admin) reset another user's password
+let pwTarget = null;
+function openPasswordDialog(user = null) {
+  pwTarget = user;
+  $('#pwForm').reset();
+  showError($('#pwError'), '');
+  $('#pwTitle').textContent = user ? `Reset password — ${user.name}` : 'Change password';
+  $('#pwCurrentWrap').hidden = !!user;
+  $('#pwForm [name=currentPassword]').required = !user;
+  $('#pwDialog').showModal();
+}
+$('#changePwBtn').onclick = () => openPasswordDialog();
+$('#pwClose').onclick = () => $('#pwDialog').close();
+$('#pwForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const d = formData(ev.target);
+  if (d.newPassword !== d.confirm) return showError($('#pwError'), 'Passwords do not match');
+  try {
+    if (pwTarget) await api(`/api/users/${pwTarget._id}`, { method: 'PUT', body: JSON.stringify({ password: d.newPassword }) });
+    else await api('/api/auth/change-password', { method: 'POST', body: JSON.stringify(d) });
+    $('#pwDialog').close();
+    alert(pwTarget ? `Password reset for ${pwTarget.name}. They will need to sign in again.` : 'Your password has been changed.');
+  } catch (err) { showError($('#pwError'), err.message); }
+});
 
 // =====================================================================
 // LIST VIEW
@@ -73,17 +186,17 @@ async function loadList() {
         <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
         <td>${fmtDate(e.dueDate)}</td>
         <td>${due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
-        <td><span class="badge ${e.status.replace(' ', '-')}">${esc(e.status)}</span></td>
+        <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
         <td>${e.lessValue ? `<span class="lv-badge small" title="${LV_TITLE}">Less value job</span>` : '—'}</td>
         <td class="actions-cell">
-          ${won
+          ${!can('team_leader') ? '' : won
             ? `<button class="btn small won-on" data-won="0" data-id="${e._id}" title="Click to undo (sets status back to Submitted)">✓ Won</button>`
             : `<button class="btn small won-btn" data-won="1" data-id="${e._id}">Mark Won</button>`}
           <a class="btn small" href="#/edit/${e._id}">Edit</a>
           ${e.links?.find(l => l.url) ? `<a class="btn small" href="${esc(e.links.find(l => l.url).url)}" target="_blank" rel="noopener" title="Open SharePoint folder">Folder</a>` : ''}
           <a class="btn small" href="${API}/${e._id}/excel">Excel</a>
           <a class="btn small" href="${API}/${e._id}/proposal" title="Download proposal (Word)">Proposal</a>
-          <button class="btn small danger" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}">Delete</button>
+          ${can('team_leader') ? `<button class="btn small danger" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}">Delete</button>` : ''}
         </td>
       </tr>`;
     })
@@ -135,26 +248,45 @@ let dirty = false;
 let activePage = 0; // index of the chart page shown
 const pg = () => cur.pages[activePage];
 
+const DEFAULT_LINK_LABEL = 'SharePoint Link';
+const DEFAULT_CONTACT = { name: 'Lee Luck', email: 'lee.luck@vectorshades.com' };
+
 function blankEstimation(jobNo) {
   return {
-    jobNo, projectName: '', clientName: '', date: today(), doneBy: '', status: 'Received',
+    jobNo, projectName: '', clientName: '', date: today(), dueDate: today(), doneBy: '', status: 'Received',
+    contactPerson: DEFAULT_CONTACT.name, contactEmail: DEFAULT_CONTACT.email,
     pages: [newPage('Page 1')],
-    structDescriptions: [], miscDescriptions: [],
     exclusions: [],
     proposalExclusions: ['Any structural steel not shown, sized or dimensioned on the structural / architectural drawings.', 'Joist details, deck, and foundation rebar details.', 'Engineering'],
     scope: '', complexity: '', deliverables: [],
     coordinationNeeded: '', durationWeeks: null, quotedTonnage: null,
     assumptions: '', remark: '',
-    proposalDate: null, quoteNo: '', submittalWeeks: null, signerName: '', signerTitle: '',
-    links: [{ label: '', url: '' }],
+    proposalDate: today(), quoteNo: '', submittalWeeks: null, signerName: '', signerTitle: '',
+    links: [{ label: DEFAULT_LINK_LABEL, url: '' }],
   };
 }
 
 // Make sure the loaded estimation has well-formed pages
+// Description tables always show at least this many rows (blank rows at the end are dropped on save)
+const MIN_DESC_ROWS = 5;
+const blankDesc = () => ({ qty: '', description: '', notes: '', heading: false });
+function padDescriptions(page) {
+  for (const key of ['structDescriptions', 'miscDescriptions']) {
+    page[key] = page[key] || [];
+    while (page[key].length < MIN_DESC_ROWS) page[key].push(blankDesc());
+  }
+  return page;
+}
+
 function normalizeCur() {
-  cur.pages = (cur.pages && cur.pages.length ? cur.pages : [newPage('Page 1')]).map((p, i) => normalizePage(p, i));
+  cur.pages = (cur.pages && cur.pages.length ? cur.pages : [newPage('Page 1')]).map((p, i) => padDescriptions(normalizePage(p, i)));
   if (activePage >= cur.pages.length) activePage = cur.pages.length - 1;
-  if (!cur.links?.length) cur.links = [{ label: '', url: '' }];
+  if (!cur.links?.length) cur.links = [{ label: DEFAULT_LINK_LABEL, url: '' }];
+  // Default contact for estimations that don't have one yet (new or older ones)
+  if (!cur.contactPerson && !cur.contactEmail) {
+    cur.contactPerson = DEFAULT_CONTACT.name;
+    cur.contactEmail = DEFAULT_CONTACT.email;
+  }
 }
 
 let clientPrio = new Set(); // nameKeys of priority clients
@@ -212,6 +344,12 @@ function fillForm() {
   $('#emailBtn').disabled = !cur._id;
   $('#proposalBtn').disabled = !cur._id;
   $('#packageBtn').disabled = !cur._id;
+  const lead = can('team_leader');
+  [...$('#statusSelect').options].forEach(o => { o.disabled = !lead && ['Won', 'Lost'].includes(o.value) && o.value !== cur.status; });
+  $('#statusSelect').disabled = !lead && ['Won', 'Lost'].includes(cur.status);
+  $('#auditInfo').textContent = cur._id
+    ? [cur.createdBy && `Created by ${cur.createdBy}`, cur.updatedBy && `last changed by ${cur.updatedBy}${cur.updatedAt ? ' on ' + fmtDate(cur.updatedAt) : ''}`].filter(Boolean).join(' · ')
+    : '';
   updateQuotePlaceholder();
   updateDueInfo();
 }
@@ -228,8 +366,6 @@ function updateDueInfo() {
 
 function renderAll() {
   renderPage();
-  renderDesc('structDescriptions');
-  renderDesc('miscDescriptions');
   renderLinks();
   updateComputed();
 }
@@ -261,6 +397,8 @@ function renderPage() {
   renderChart();
   renderDwgs();
   renderExtras();
+  renderDesc('structDescriptions');
+  renderDesc('miscDescriptions');
 }
 
 function switchPage(i) {
@@ -326,17 +464,146 @@ function renderExtras() {
   $('#additionalHoursFor').value = pg().additionalHoursFor || '';
 }
 
+// ---------- Chart quantities -> Struct. / Misc. Description lines ----------
+// Chart items grouped into one description per sheet; quantity = sum of that group's counts on the sheet
+const AUTO_DESC_GROUPS = {
+  structDescriptions: [ // main steel — one line per chart item
+    { name: 'CURVED BEAM', keys: ['beam11'] },
+    { name: 'MOMENT/BRACED BEAM', keys: ['beam12'] },
+    { name: 'BEAM', keys: ['beam13'] },
+    { name: 'SECONDARY BEAM', keys: ['beam14'] },
+    { name: 'COMPLEX COLUMN', keys: ['col11'] },
+    { name: 'MOMENT/BRACED COLUMN', keys: ['col12'] },
+    { name: 'COLUMN', keys: ['col13'] },
+    { name: 'POST/STUD COLUMN', keys: ['col14'] },
+    { name: 'BRACE', keys: ['vb11'] },
+    { name: 'V BRACE 1/3', keys: ['vb13'] },
+    { name: 'V BRACE 1/4', keys: ['vb14'] },
+    { name: 'V BRACE 1/2', keys: ['vb12'] },
+    { name: 'H BRACE 1/4', keys: ['hb14'] },
+    { name: 'H BRACE 1/3', keys: ['hb13'] },
+    { name: 'TRUSS', keys: ['truss'] },
+  ],
+  miscDescriptions: [ // misc
+    { name: 'GUARDRAILS', keys: ['hrail'] },
+    { name: 'WALL RAILS', keys: ['wrail'] },
+    { name: 'CAGE LADDERS', keys: ['ladderCage'] },
+    { name: 'LADDERS', keys: ['ladderNoCage'] },
+    { name: 'GATES', keys: ['gates'] },
+    { name: 'STAIRS W/ RAILINGS', keys: ['stringer'] },
+  ],
+};
+const isBlankDesc = d => !String(d.qty ?? '').trim() && !String(d.description ?? '').trim() && !String(d.notes ?? '').trim();
+
+function syncAutoDescriptions(page) {
+  const counts = Object.fromEntries(page.items.map(it => [it.key, it.counts]));
+  for (const [listKey, groups] of Object.entries(AUTO_DESC_GROUPS)) {
+    // What the chart says now: autoKey -> { qty, notes, name }
+    const wanted = new Map();
+    page.sheets.forEach((sheet, c) => {
+      for (const g of groups) {
+        const qty = g.keys.reduce((a, k) => a + (+(counts[k] || [])[c] || 0), 0);
+        if (qty) wanted.set(`${g.name}|${c}`, { qty: String(qty), notes: sheet || `Sheet ${c + 1}`, name: g.name });
+      }
+    });
+    // Update generated lines where they are (keeps any drag-and-drop order), drop ones no longer in the chart
+    const list = [];
+    for (const d of page[listKey] || []) {
+      if (!d.autoKey) { list.push(d); continue; }
+      const w = wanted.get(d.autoKey);
+      if (!w) continue;
+      list.push({ ...d, qty: w.qty, notes: w.notes }); // keep wording the user changed
+      wanted.delete(d.autoKey);
+    }
+    // New generated lines go after the last generated line (or at the top)
+    while (list.length && isBlankDesc(list[list.length - 1])) list.pop(); // spare blank rows are re-added below
+    let at = 0;
+    list.forEach((d, i) => { if (d.autoKey) at = i + 1; });
+    const added = [...wanted].map(([autoKey, w]) => ({ qty: w.qty, description: w.name, notes: w.notes, heading: false, autoKey }));
+    list.splice(at, 0, ...added);
+    page[listKey] = list;
+  }
+  padDescriptions(page);
+}
+
+// A sheet column was removed: drop its generated lines and renumber the columns after it
+function dropAutoColumn(page, i) {
+  for (const listKey of Object.keys(AUTO_DESC_GROUPS)) {
+    page[listKey] = (page[listKey] || [])
+      .filter(x => !x.autoKey || +x.autoKey.split('|')[1] !== i)
+      .map(x => {
+        if (!x.autoKey) return x;
+        const [g, c] = x.autoKey.split('|');
+        return +c > i ? { ...x, autoKey: `${g}|${+c - 1}` } : x;
+      });
+  }
+}
+
+// Call after quantities / sheet names / sheet columns change
+function chartChanged() {
+  syncAutoDescriptions(pg());
+  renderDesc('structDescriptions');
+  renderDesc('miscDescriptions');
+}
+
 function renderDesc(key) {
-  const rows = cur[key];
-  $(`#${key}`).innerHTML = `<thead><tr><th style="width:90px">Qty</th><th>Description</th><th>Notes</th><th style="width:80px">Heading</th><th style="width:40px"></th></tr></thead>
-    <tbody>${rows.map((d, k) => `<tr class="${d.heading ? 'heading' : ''}">
-      <td><input data-desc="${key}" data-k="${k}" data-f="qty" value="${esc(d.qty)}" /></td>
+  const rows = pg()[key];
+  $(`#${key}`).innerHTML = `<thead><tr><th style="width:18px"></th><th style="width:64px">Qty</th><th>Description</th><th style="width:34%">Notes</th><th style="width:56px" title="Heading row (bold, shaded)">Head.</th><th style="width:28px"></th></tr></thead>
+    <tbody data-list="${key}">${rows.map((d, k) => `<tr class="${d.heading ? 'heading' : ''} ${d.autoKey ? 'auto-row' : ''}" data-row="${k}"
+        ${d.autoKey ? 'title="From the estimation chart — change the quantity in the chart"' : ''}>
+      <td class="drag-handle" title="Drag to move this row">⋮⋮</td>
+      <td><input data-desc="${key}" data-k="${k}" data-f="qty" value="${esc(d.qty)}" ${d.autoKey ? 'readonly' : ''} /></td>
       <td><input data-desc="${key}" data-k="${k}" data-f="description" value="${esc(d.description)}" /></td>
       <td><input data-desc="${key}" data-k="${k}" data-f="notes" value="${esc(d.notes)}" /></td>
       <td class="center"><input type="checkbox" data-desc="${key}" data-k="${k}" data-f="heading" ${d.heading ? 'checked' : ''} /></td>
       <td><button type="button" class="x" data-del-desc="${key}" data-k="${k}">×</button></td></tr>`).join('')
-      || `<tr><td colspan="5" class="sub center">No lines yet</td></tr>`}</tbody>`;
+      || `<tr><td colspan="6" class="sub center">No lines yet</td></tr>`}</tbody>`;
 }
+
+// ---------- Drag and drop rows in the description tables ----------
+// Rows only become draggable while the handle is held, so text in the inputs can still be selected.
+let dragFrom = null; // { list, index }
+['structDescriptions', 'miscDescriptions'].forEach(key => {
+  const table = $(`#${key}`);
+  table.addEventListener('mousedown', ev => {
+    const tr = ev.target.closest('tr[data-row]');
+    if (tr && ev.target.closest('.drag-handle')) tr.draggable = true;
+  });
+  table.addEventListener('mouseup', () => { table.querySelectorAll('tr[draggable="true"]').forEach(r => { r.draggable = false; }); });
+  table.addEventListener('dragstart', ev => {
+    const tr = ev.target.closest('tr[data-row]');
+    if (!tr) return;
+    dragFrom = { list: key, index: +tr.dataset.row };
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', String(dragFrom.index));
+    tr.classList.add('dragging');
+  });
+  table.addEventListener('dragover', ev => {
+    const tr = ev.target.closest('tr[data-row]');
+    if (!dragFrom || dragFrom.list !== key || !tr) return;
+    ev.preventDefault();
+    const below = ev.clientY > tr.getBoundingClientRect().top + tr.offsetHeight / 2;
+    table.querySelectorAll('.drop-above, .drop-below').forEach(r => r.classList.remove('drop-above', 'drop-below'));
+    tr.classList.add(below ? 'drop-below' : 'drop-above');
+  });
+  table.addEventListener('drop', ev => {
+    const tr = ev.target.closest('tr[data-row]');
+    if (!dragFrom || dragFrom.list !== key || !tr) return;
+    ev.preventDefault();
+    const rows = pg()[key];
+    let to = +tr.dataset.row + (tr.classList.contains('drop-below') ? 1 : 0);
+    const [moved] = rows.splice(dragFrom.index, 1);
+    if (to > dragFrom.index) to--;
+    rows.splice(to, 0, moved);
+    dirty = true;
+    dragFrom = null;
+    renderDesc(key);
+  });
+  table.addEventListener('dragend', () => {
+    dragFrom = null;
+    table.querySelectorAll('tr[data-row]').forEach(r => { r.draggable = false; r.classList.remove('dragging', 'drop-above', 'drop-below'); });
+  });
+});
 
 // ---------- Live totals ----------
 function updateComputed() {
@@ -387,9 +654,9 @@ form.addEventListener('input', ev => {
   const d = el.dataset;
   dirty = true;
   $('#saveMsg').textContent = '';
-  if (d.r !== undefined) pg().items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value;
+  if (d.r !== undefined) { pg().items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value; chartChanged(); }
   else if (d.rate !== undefined) pg().items[+d.rate][d.f] = el.value === '' ? 0 : +el.value;
-  else if (d.sheet !== undefined) { pg().sheets[+d.sheet] = el.value; return; }
+  else if (d.sheet !== undefined) { pg().sheets[+d.sheet] = el.value; chartChanged(); return; }
   else if (d.dwg) {
     if (el.value === '') delete pg().dwgOverrides[d.dwg];
     else pg().dwgOverrides[d.dwg] = +el.value;
@@ -408,7 +675,7 @@ form.addEventListener('input', ev => {
     return;
   }
   else if (d.desc) {
-    const row = cur[d.desc][+d.k];
+    const row = pg()[d.desc][+d.k];
     row[d.f] = el.type === 'checkbox' ? el.checked : el.value;
     if (el.type === 'checkbox') el.closest('tr').classList.toggle('heading', el.checked);
     return;
@@ -444,7 +711,7 @@ form.addEventListener('click', ev => {
     const base = 'Page ';
     let n = cur.pages.length + 1;
     while (cur.pages.some(p => p.name.toLowerCase() === (base + n).toLowerCase())) n++;
-    cur.pages.push(newPage(base + n));
+    cur.pages.push(padDescriptions(newPage(base + n)));
     dirty = true;
     switchPage(cur.pages.length - 1);
   } else if (d.delSheet !== undefined) {
@@ -453,10 +720,12 @@ form.addEventListener('click', ev => {
     if (used && !confirm(`Remove column "${pg().sheets[i] || 'Sheet ' + (i + 1)}" and its quantities?`)) return;
     pg().sheets.splice(i, 1);
     pg().items.forEach(it => it.counts.splice(i, 1));
+    dropAutoColumn(pg(), i); // generated lines are keyed by column position
+    chartChanged();
     dirty = true;
     renderChart(); updateComputed();
   } else if (d.add) {
-    cur[d.add].push({ qty: '', description: '', notes: '', heading: false });
+    pg()[d.add].push({ qty: '', description: '', notes: '', heading: false });
     dirty = true;
     renderDesc(d.add);
     $(`#${d.add} tbody tr:last-child input[data-f="qty"]`)?.focus();
@@ -467,14 +736,14 @@ form.addEventListener('click', ev => {
   } else if (d.open !== undefined && ev.target.classList.contains('disabled')) {
     ev.preventDefault();
   } else if (d.delDesc) {
-    cur[d.delDesc].splice(+d.k, 1);
+    pg()[d.delDesc].splice(+d.k, 1);
     dirty = true;
     renderDesc(d.delDesc);
   }
 });
 
 $('#addLinkBtn').onclick = () => {
-  cur.links.push({ label: '', url: '' });
+  cur.links.push({ label: DEFAULT_LINK_LABEL, url: '' });
   dirty = true;
   renderLinks();
   $(`#linkRows input[data-link="${cur.links.length - 1}"][data-f="url"]`).focus();
@@ -686,6 +955,10 @@ function renderClients() {
       ${years.map(y => `<th class="num">${sum(y)}</th>`).join('')}
       <th class="num">${list.reduce((a, c) => a + c.totalAwarded, 0)}</th><th class="num">${list.reduce((a, c) => a + c.estimations, 0)}</th><th></th></tr>` : '';
   $('#clientEmpty').hidden = list.length > 0;
+  if (!can('manager')) {
+    $('#clientRows').querySelectorAll('input, select').forEach(el => { el.disabled = true; });
+    $('#clientRows').querySelectorAll('button').forEach(el => { el.hidden = !el.dataset.prio; el.disabled = true; });
+  }
 }
 
 async function updateClient(id, body, msg) {
@@ -763,21 +1036,28 @@ $('#clientSearch').oninput = () => { clearTimeout(clientSearchTimer); clientSear
 // ROUTER
 // =====================================================================
 async function route() {
-  const hash = location.hash || '#/';
+  if (!me) return;
+  let hash = location.hash || '#/';
+  if (hash.startsWith('#/users') && !can('admin')) { history.replaceState(null, '', '#/'); hash = '#/'; }
   const editing = hash.startsWith('#/new') || hash.startsWith('#/edit/');
   const clients = hash.startsWith('#/clients');
-  $('#listView').hidden = editing || clients;
+  const users = hash.startsWith('#/users');
+  $('#listView').hidden = editing || clients || users;
   $('#editorView').hidden = !editing;
   $('#clientsView').hidden = !clients;
+  $('#usersView').hidden = !users;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients);
+  $('#navEst').classList.toggle('active', !clients && !users);
   $('#navClients').classList.toggle('active', clients);
+  $('#navUsers').classList.toggle('active', users);
   try {
     if (hash.startsWith('#/edit/')) await openEditor(hash.slice(7));
     else if (hash.startsWith('#/new')) await openEditor(null);
     else if (clients) await loadClients();
+    else if (users) await loadUsers();
     else await loadList();
   } catch (err) {
+    if (err.silent) return;
     alert(err.message);
     location.hash = '#/';
   }
@@ -812,4 +1092,65 @@ let searchTimer;
 $('#search').placeholder = 'Search No., project, client, done by, scope…';
 $('#search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadList, 250); };
 
-route();
+// =====================================================================
+// USERS (Admin)
+// =====================================================================
+let userList = [];
+$('#newUserRole').innerHTML = ROLE_ORDER.map(r => `<option value="${r}">${ROLE_NAMES[r]}</option>`).join('');
+
+async function loadUsers() {
+  userList = await api('/api/users');
+  $('#userRows').innerHTML = userList.map(u => {
+    const self = u._id === me._id;
+    return `<tr class="${u.active ? '' : 'row-inactive'}">
+      <td><strong>${esc(u.name)}</strong>${self ? ' <span class="sub">(you)</span>' : ''}</td>
+      <td>${esc(u.username)}</td>
+      <td><select class="cell-edit" data-user-role="${u._id}">
+        ${ROLE_ORDER.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_NAMES[r]}</option>`).join('')}</select></td>
+      <td>${u.active ? '<span class="badge Won">Active</span>' : '<span class="badge On-Hold">Disabled</span>'}</td>
+      <td>${u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '<span class="sub">never</span>'}</td>
+      <td class="actions-cell">
+        <button class="btn small" data-reset="${u._id}">Reset password</button>
+        ${self ? '' : `<button class="btn small" data-toggle="${u._id}">${u.active ? 'Disable' : 'Enable'}</button>
+        <button class="btn small danger" data-del-user="${u._id}">Delete</button>`}
+      </td></tr>`;
+  }).join('');
+}
+
+$('#addUserForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  try {
+    const u = await api('/api/users', { method: 'POST', body: JSON.stringify(formData(ev.target)) });
+    ev.target.reset();
+    $('#userMsg').textContent = `Added ${u.name} (${ROLE_NAMES[u.role]})`;
+    loadUsers();
+  } catch (err) { $('#userMsg').textContent = ''; alert(err.message); }
+});
+
+$('#userRows').addEventListener('change', async ev => {
+  const id = ev.target.dataset.userRole;
+  if (!id) return;
+  try {
+    await api(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify({ role: ev.target.value }) });
+    $('#userMsg').textContent = 'Role updated';
+    if (id === me._id) return boot(); // own role changed: refresh what's visible
+  } catch (err) { alert(err.message); }
+  loadUsers();
+});
+
+$('#userRows').addEventListener('click', async ev => {
+  const d = ev.target.dataset;
+  const u = userList.find(x => x._id === (d.reset || d.toggle || d.delUser));
+  if (!u) return;
+  try {
+    if (d.reset) return openPasswordDialog(u);
+    if (d.toggle) await api(`/api/users/${u._id}`, { method: 'PUT', body: JSON.stringify({ active: !u.active }) });
+    if (d.delUser) {
+      if (!confirm(`Delete user ${u.name}? (Their estimations are kept.)`)) return;
+      await api(`/api/users/${u._id}`, { method: 'DELETE' });
+    }
+    loadUsers();
+  } catch (err) { alert(err.message); }
+});
+
+boot();

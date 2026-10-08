@@ -28,6 +28,23 @@ Each estimation can be downloaded as an Excel "ESTIMATION CHART" with the same l
 - **Tonnage expected** = total hours ÷ hours per tonnage (default 2.5). Time per drawing = total hours ÷ total drawings.
 - Additional hours note, Arch / Span / Weight boxes, struct and misc description lists, and exclusions.
 
+## Users and sign-in
+**Currently switched off** (`AUTH_ENABLED=false` in `.env`): no login, everyone has full access. Set `AUTH_ENABLED=true` and restart to turn it on.
+
+The first time the app is opened (no users yet) it asks you to create the **Admin** account. After that everyone signs in.
+Admin adds users on the **Users** page (top menu) and can change roles, reset passwords and disable accounts.
+
+| Role | Can do |
+|---|---|
+| Member | View / create / edit estimations, downloads, reply email |
+| Team Leader | + mark Won / Lost, delete estimations, export the estimation list |
+| Manager | + manage the client list (import, priority, edit, delete, export) |
+| Admin | + manage users |
+
+Rules are enforced by the server (`lib/auth.js`, `requireRole`). Passwords are stored as scrypt hashes; sessions last 12 hours;
+5 wrong passwords lock that login for 5 minutes. There must always be at least one active Admin.
+If the Admin password is lost, delete the user from the `users` collection in MongoDB and open the app to run setup again.
+
 ## Clients and "less value jobs"
 - **Clients** page (top menu): import an Excel (.xlsx) or CSV client list, mark priority clients (★), add / rename / delete.
   The first column headed "Client"/"Name" is read; an optional "Priority" column (Yes/No) sets priority. A template is downloadable.

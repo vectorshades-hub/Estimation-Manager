@@ -3,6 +3,7 @@ const ExcelJS = require('exceljs');
 const Client = require('../models/Client');
 const Estimation = require('../models/Estimation');
 const { nameKey } = require('../models/Client');
+const { requireRole } = require('../lib/auth');
 
 const router = express.Router();
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -63,7 +64,10 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+// Viewing is open to everyone signed in; changing the client list needs Manager or Admin
+const manager = requireRole('manager');
+
+router.post('/', manager, async (req, res, next) => {
   try {
     const { name, priority, salesLead, preference } = req.body;
     const existing = await Client.findOne({ nameKey: nameKey(name) });
@@ -75,7 +79,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Update fields. `awarded: { "2025": 4 }` sets the shown count for a year (base is adjusted for app wins).
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', manager, async (req, res, next) => {
   try {
     const c = await Client.findById(req.params.id);
     if (!c) return res.status(404).json({ error: 'Not found' });
@@ -97,7 +101,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', manager, async (req, res, next) => {
   try {
     const c = await Client.findByIdAndDelete(req.params.id);
     if (!c) return res.status(404).json({ error: 'Not found' });
@@ -171,7 +175,7 @@ function mapHeader(header) {
   };
 }
 
-router.post('/import', express.raw({ type: () => true, limit: '10mb' }), async (req, res, next) => {
+router.post('/import', manager, express.raw({ type: () => true, limit: '10mb' }), async (req, res, next) => {
   try {
     if (!req.body?.length) return res.status(400).json({ error: 'No file received' });
     const rows = await readRows(req.body);
@@ -260,7 +264,7 @@ async function clientWorkbook(clients, years, { template = false } = {}) {
   return wb;
 }
 
-router.get('/template', async (req, res, next) => {
+router.get('/template', manager, async (req, res, next) => {
   try {
     const y = new Date().getFullYear();
     const wb = await clientWorkbook([
@@ -276,7 +280,7 @@ router.get('/template', async (req, res, next) => {
   }
 });
 
-router.get('/export', async (req, res, next) => {
+router.get('/export', manager, async (req, res, next) => {
   try {
     const { clients, years } = await clientsWithAwards();
     const wb = await clientWorkbook(clients, years);

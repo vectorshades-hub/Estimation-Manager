@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { MAX_SHEETS, DEFAULT_HRS_PER_TON, normalizeItems, computeEstimation } = require('../public/calc');
 
-const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold'];
+const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
 const COMPLEXITIES = ['', 'Low', 'Medium', 'High'];
 const DELIVERABLES = ['Shop Drawings', 'Erection Drawings', 'CNC Files', 'Other files'];
 // Standard exclusions printed in the Word proposal (from the proposal template)
@@ -23,7 +23,10 @@ const itemSchema = new mongoose.Schema(
   { _id: false }
 );
 const descSchema = new mongoose.Schema(
-  { qty: String, description: String, notes: String, heading: { type: Boolean, default: false } },
+  {
+    qty: String, description: String, notes: String, heading: { type: Boolean, default: false },
+    autoKey: String, // set on lines generated from the chart (main steel), e.g. "COLUMNS|3"
+  },
   { _id: false }
 );
 const archSchema = new mongoose.Schema({ ref: String, description: String }, { _id: false });
@@ -43,6 +46,8 @@ const pageSchema = new mongoose.Schema(
     arch: [archSchema],
     span: [String],
     weight: [String],
+    structDescriptions: [descSchema],
+    miscDescriptions: [descSchema],
   },
   { _id: false }
 );
@@ -63,6 +68,8 @@ const estimationSchema = new mongoose.Schema(
     status: { type: String, enum: STATUSES, default: 'Received' },
     wonAt: { type: Date }, // set when status becomes Won (used for awarded-per-year counts)
     notes: { type: String, trim: true },
+    createdBy: { type: String, trim: true },  // user names, set by the server
+    updatedBy: { type: String, trim: true },
 
     // Submission details (used in the reply email) — no defaults, filled in per job
     scope: { type: String, trim: true },
@@ -87,8 +94,6 @@ const estimationSchema = new mongoose.Schema(
 
     // Estimation chart pages
     pages: [pageSchema],
-    structDescriptions: [descSchema],
-    miscDescriptions: [descSchema],
     exclusions: { type: [String], default: () => [] },
 
     // Derived (stored for list / stats)
@@ -107,9 +112,17 @@ estimationSchema.pre('validate', function () {
   if (this.status !== 'Won' && this.wonAt) this.wonAt = undefined;
   this.links = (this.links || []).filter(l => l.url || l.label);
   if (!this.pages || !this.pages.length) this.pages = [{ name: 'Page 1', sheets: [] }];
+  const isBlank = d => !String(d.qty ?? '').trim() && !String(d.description ?? '').trim() && !String(d.notes ?? '').trim();
   this.pages.forEach((p, i) => {
     if (!p.name) p.name = `Page ${i + 1}`;
     p.items = normalizeItems(p.items, p.sheets.length);
+    // Drop empty rows at the end of the description lists (the editor shows spare blank rows)
+    for (const key of ['structDescriptions', 'miscDescriptions']) {
+      const list = p[key] || [];
+      let end = list.length;
+      while (end > 0 && isBlank(list[end - 1])) end--;
+      if (end < list.length) p[key] = list.slice(0, end);
+    }
   });
   const c = computeEstimation({
     pages: this.pages.map(p => ({ ...p.toObject(), dwgOverrides: Object.fromEntries(p.dwgOverrides || []) })),
@@ -137,6 +150,16 @@ estimationSchema.statics.migrateToPages = async function () {
       $unset: { sheets: '', items: '', dwgOverrides: '', hoursPerTon: '', additionalHoursFor: '', arch: '', span: '', weight: '' },
     });
   }
+  // Descriptions used to be one list per estimation -> move them into the first page
+  const withDesc = await coll.find({ $or: [{ structDescriptions: { $exists: true } }, { miscDescriptions: { $exists: true } }] }).toArray();
+  for (const d of withDesc) {
+    const set = {};
+    if ((d.structDescriptions || []).length && !(d.pages?.[0]?.structDescriptions || []).length) set['pages.0.structDescriptions'] = d.structDescriptions;
+    if ((d.miscDescriptions || []).length && !(d.pages?.[0]?.miscDescriptions || []).length) set['pages.0.miscDescriptions'] = d.miscDescriptions;
+    await coll.updateOne({ _id: d._id }, { ...(Object.keys(set).length ? { $set: set } : {}), $unset: { structDescriptions: '', miscDescriptions: '' } });
+  }
+  if (withDesc.length) console.log(`Moved descriptions of ${withDesc.length} estimation(s) into Page 1`);
+
   // Recompute derived totals (sheetCount / pageCount). Old records may miss fields that are required today
   // (e.g. No.), so only validate what changes, and never let one bad record stop the server from starting.
   for (const doc of await this.find({ sheetCount: { $exists: false } })) {

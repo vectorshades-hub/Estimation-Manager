@@ -17,11 +17,12 @@ const { buildWorkbook } = require('../lib/excel');
 const { buildExport } = require('../lib/exportList');
 const { buildProposal, proposalFileName } = require('../lib/proposal');
 const JSZip = require('jszip');
+const { requireRole, hasRole } = require('../lib/auth');
 
 const router = express.Router();
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIST_FIELDS = 'jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
+const LIST_FIELDS = 'createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
 
 // Shared by the list and the Excel export.
 // Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd)
@@ -66,7 +67,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Export the (filtered) list to Excel
-router.get('/export', async (req, res, next) => {
+router.get('/export', requireRole('team_leader'), async (req, res, next) => {
   try {
     const items = await findFiltered(req.query, '-pages -structDescriptions -miscDescriptions');
     const wb = await buildExport(items, describeFilters(req.query));
@@ -184,11 +185,22 @@ router.get('/:id/proposal', async (req, res, next) => {
   }
 });
 
-const clean = ({ _id, createdAt, updatedAt, totalCount, totalHours, totalDwgs, approxTonnage, __v, ...data }) => data;
+const clean = ({ _id, createdAt, updatedAt, totalCount, totalHours, totalDwgs, approxTonnage, sheetCount, pageCount,
+  wonAt, createdBy, updatedBy, __v, ...data }) => data;
+
+// Only Team Leaders and above may set or clear Won / Lost
+const DECIDED = ['Won', 'Lost'];
+function checkStatusChange(req, from, to) {
+  if (to === undefined || to === from) return;
+  if ((DECIDED.includes(to) || DECIDED.includes(from)) && !hasRole(req.user, 'team_leader')) {
+    throw Object.assign(new Error('Only a Team Leader, Manager or Admin can mark an estimation Won or Lost'), { status: 403 });
+  }
+}
 
 router.post('/', async (req, res, next) => {
   try {
-    const doc = await Estimation.create(clean(req.body));
+    checkStatusChange(req, 'Received', req.body.status);
+    const doc = await Estimation.create({ ...clean(req.body), createdBy: req.user.name || undefined, updatedBy: req.user.name || undefined });
     await Client.ensure(doc.clientName);
     res.status(201).json(doc);
   } catch (err) {
@@ -200,7 +212,8 @@ router.put('/:id', async (req, res, next) => {
   try {
     const doc = await Estimation.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
-    doc.set(clean(req.body));
+    checkStatusChange(req, doc.status, req.body.status);
+    doc.set({ ...clean(req.body), ...(req.user.name ? { updatedBy: req.user.name } : {}) });
     await doc.save(); // save() so derived totals are recomputed
     await Client.ensure(doc.clientName);
     res.json(doc);
@@ -209,7 +222,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireRole('team_leader'), async (req, res, next) => {
   try {
     const item = await Estimation.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });

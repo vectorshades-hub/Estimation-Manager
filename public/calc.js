@@ -123,6 +123,8 @@
       arch: [{}, {}, {}, {}],
       span: ['', '', ''],
       weight: ['', '', ''],
+      structDescriptions: [],
+      miscDescriptions: [],
     };
   }
 
@@ -141,6 +143,8 @@
       arch: pad(p && p.arch, 4, () => ({})),
       span: pad(p && p.span, 3, () => ''),
       weight: pad(p && p.weight, 3, () => ''),
+      structDescriptions: [...((p && p.structDescriptions) || [])],
+      miscDescriptions: [...((p && p.miscDescriptions) || [])],
     };
   }
 

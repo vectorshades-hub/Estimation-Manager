@@ -6,15 +6,50 @@
   <title>Estimation Manager</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="signed-out">
+  <!-- ===================== LOGIN / FIRST-TIME SETUP ===================== -->
+  <div id="authView" class="auth-view" hidden>
+    <div class="auth-card">
+      <div class="auth-brand">Estimation Manager</div>
+
+      <form id="loginForm" autocomplete="on">
+        <h2>Sign in</h2>
+        <label>Username<input name="username" autocomplete="username" required autofocus /></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
+        <p class="error" id="loginError" hidden></p>
+        <button type="submit" class="btn primary block">Sign in</button>
+        <p class="hint center">Forgot your password? Ask your admin to reset it.</p>
+      </form>
+
+      <form id="setupForm" hidden autocomplete="off">
+        <h2>Create the Admin account</h2>
+        <p class="hint">No users exist yet. This first account will be the <strong>Admin</strong>, who can add the other users.</p>
+        <label>Your name<input name="name" required /></label>
+        <label>Username<input name="username" required pattern="[A-Za-z0-9._\-]{3,30}" title="3-30 letters, numbers, . _ -" autocomplete="username" /></label>
+        <label>Password<input name="password" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <label>Confirm password<input name="confirm" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <p class="error" id="setupError" hidden></p>
+        <button type="submit" class="btn primary block">Create Admin &amp; sign in</button>
+      </form>
+    </div>
+  </div>
+
   <header class="topbar">
     <h1><a href="#/">Estimation Manager</a></h1>
     <nav class="nav">
       <a href="#/" id="navEst">Estimations</a>
       <a href="#/clients" id="navClients">Clients</a>
+      <a href="#/users" id="navUsers" data-min-role="admin">Users</a>
     </nav>
     <span class="spacer"></span>
     <a href="#/new" class="btn primary" id="newBtn">+ New Estimation</a>
+    <div class="user-menu">
+      <button type="button" class="user-btn" id="userBtn"><span id="userName"></span><span class="role-badge" id="userRole"></span> ▾</button>
+      <div class="user-dropdown" id="userDropdown" hidden>
+        <button type="button" id="changePwBtn">Change password</button>
+        <button type="button" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
   </header>
 
   <!-- ===================== LIST VIEW ===================== -->
@@ -32,7 +67,7 @@
       <label class="date-filter">From<input type="date" id="fromDate" /></label>
       <label class="date-filter">To<input type="date" id="toDate" /></label>
       <button type="button" class="btn" id="clearFilters" title="Clear all filters">Clear</button>
-      <button type="button" class="btn export-btn" id="exportBtn" title="Export the estimations shown below to Excel">⬇ Export to Excel</button>
+      <button type="button" class="btn export-btn" id="exportBtn" data-min-role="team_leader" title="Export the estimations shown below to Excel">⬇ Export to Excel</button>
     </section>
 
     <div class="table-wrap">
@@ -66,6 +101,7 @@
     <div class="editor-bar">
       <a href="#/" class="btn">← Back</a>
       <h2 id="editorTitle">New Estimation</h2>
+      <span id="auditInfo" class="hint"></span>
       <span id="lessValueBadge" class="lv-badge" hidden>Less value job</span>
       <span class="spacer"></span>
       <span id="saveMsg" class="save-msg"></span>
@@ -78,7 +114,8 @@
     <p id="formError" class="error" hidden></p>
 
     <form id="form" autocomplete="off" onsubmit="return false">
-      <section class="card">
+      <div class="top-grid">
+      <section class="card accent-blue">
         <h3>Details</h3>
         <div class="fields">
           <label>No. *<input name="jobNo" required /></label>
@@ -104,7 +141,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card accent-green">
         <div class="card-head">
           <h3>Submission Details</h3>
           <span class="hint">Used in the reply email</span>
@@ -136,8 +173,10 @@
           <label class="wide">Remark<input name="remark" /></label>
         </div>
         <p class="hint">Email exclusions are taken from the “Specific Exclusions” section below.</p>
+      </section>
 
-        <h4 class="sub-head">Proposal (Word)</h4>
+      <section class="card accent-amber">
+        <div class="card-head"><h3>Proposal (Word)</h3><span class="hint">Used in the Word proposal</span></div>
         <div class="fields">
           <label>Proposal date<input name="proposalDate" type="date" /></label>
           <label>Quote #<input name="quoteNo" id="quoteNo" placeholder="auto" /></label>
@@ -151,32 +190,51 @@
           Scope of Work is taken from the Struct. / Misc. Description lists.</p>
       </section>
 
-      <section class="card">
+      <section class="card accent-blue">
         <div class="card-head"><h3>SharePoint Links</h3>
           <span class="hint">Folder links for this submission's documents</span><span class="spacer"></span>
           <button type="button" class="btn small" id="addLinkBtn">+ Add link</button></div>
         <div id="linkRows"></div>
       </section>
+      </div>
 
-      <section class="card">
-        <div class="card-head">
-          <h3>Estimation Chart</h3>
-          <span class="hint">Enter quantities per drawing sheet. Rate = minutes per unit / divisor.</span>
-          <span class="spacer"></span>
-          <button type="button" class="btn small" id="addSheetBtn">+ Add sheet column</button>
-        </div>
-        <div class="page-bar">
-          <div class="page-tabs" id="pageTabs"></div>
-          <span class="spacer"></span>
-          <button type="button" class="btn small" id="renamePageBtn" title="Rename this page">✎ Rename page</button>
-          <button type="button" class="btn small danger" id="deletePageBtn" title="Delete this page">Delete page</button>
-        </div>
-        <div class="grid-wrap">
-          <table class="chart" id="chart"></table>
-        </div>
-      </section>
+      <!-- Estimation chart (2.5/4 of the width) beside the page's description lists -->
+      <div class="chart-row">
+        <section class="card accent-green chart-card">
+          <div class="card-head">
+            <h3>Estimation Chart</h3>
+            <span class="hint">Enter quantities per drawing sheet. Rate = minutes per unit / divisor.</span>
+          </div>
+          <div class="page-bar">
+            <div class="page-tabs" id="pageTabs"></div>
+            <span class="spacer"></span>
+            <button type="button" class="btn small" id="addSheetBtn">+ Add sheet column</button>
+            <button type="button" class="btn small" id="renamePageBtn" title="Rename this page">✎ Rename page</button>
+            <button type="button" class="btn small danger" id="deletePageBtn" title="Delete this page">Delete page</button>
+          </div>
+          <div class="grid-wrap chart-wrap">
+            <table class="chart" id="chart"></table>
+          </div>
+        </section>
 
-      <section class="card">
+        <div class="desc-col">
+          <section class="card desc-card">
+            <div class="card-head"><h3>Descriptions <span class="page-chip page-name"></span></h3></div>
+            <div class="desc-sub">
+              <div class="desc-sub-head"><h4>Struct. Description</h4><span class="spacer"></span>
+                <button type="button" class="btn small" data-add="structDescriptions">+ Add line</button></div>
+              <table class="desc" id="structDescriptions"></table>
+            </div>
+            <div class="desc-sub">
+              <div class="desc-sub-head"><h4>Misc. Description</h4><span class="spacer"></span>
+                <button type="button" class="btn small" data-add="miscDescriptions">+ Add line</button></div>
+              <table class="desc" id="miscDescriptions"></table>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section class="card accent-amber">
         <h3>No. of Drawings &amp; Tonnage <span class="page-chip page-name"></span></h3>
         <div class="grid-wrap">
           <table class="chart dwgs" id="dwgTable"></table>
@@ -186,7 +244,7 @@
         <div class="all-pages" id="allPagesSummary" hidden></div>
       </section>
 
-      <section class="card">
+      <section class="card accent-blue">
         <h3>Additional Information <span class="page-chip page-name"></span></h3>
         <div class="fields">
           <label class="full">Additional hours required for<input id="additionalHoursFor" /></label>
@@ -207,19 +265,8 @@
         </div>
       </section>
 
-      <section class="card">
-        <div class="card-head"><h3>Struct. Description</h3><span class="spacer"></span>
-          <button type="button" class="btn small" data-add="structDescriptions">+ Add line</button></div>
-        <table class="desc" id="structDescriptions"></table>
-      </section>
 
-      <section class="card">
-        <div class="card-head"><h3>Misc. Description</h3><span class="spacer"></span>
-          <button type="button" class="btn small" data-add="miscDescriptions">+ Add line</button></div>
-        <table class="desc" id="miscDescriptions"></table>
-      </section>
-
-      <section class="card">
+      <section class="card accent-green">
         <h3>Specific Exclusions</h3>
         <label class="full">One exclusion per line<textarea name="exclusions" rows="4"></textarea></label>
       </section>
@@ -228,7 +275,7 @@
 
   <!-- ===================== CLIENTS VIEW ===================== -->
   <main id="clientsView" hidden>
-    <section class="card">
+    <section class="card" data-min-role="manager">
       <div class="card-head"><h3>Import Client List</h3><span class="spacer"></span>
         <a class="btn small" href="/api/clients/template">Download template</a></div>
       <p class="hint">Excel (.xlsx) or CSV with columns like <em>Client Names, Sales Lead, Client preferance, 2025 No of projects awarded, 2026 No of projects awarded, Total Awarded Projects</em>.
@@ -247,14 +294,14 @@
         <span class="hint">★ = priority client. Non-priority clients with less than <span id="lvHours"></span> hrs are marked “Less value job”.
           Awarded counts update automatically when an estimation is marked Won.</span>
         <span class="spacer"></span>
-        <a class="btn export-btn" href="/api/clients/export">⬇ Export to Excel</a></div>
+        <a class="btn export-btn" href="/api/clients/export" data-min-role="manager">⬇ Export to Excel</a></div>
       <div class="toolbar">
         <input id="clientSearch" type="search" placeholder="Search clients…" />
         <select id="clientFilter"><option value="">All clients</option><option value="1">Priority only</option><option value="0">Non-priority only</option></select>
         <select id="prefFilter"><option value="">All preferences</option></select>
         <select id="leadFilter"><option value="">All sales leads</option></select>
       </div>
-      <div class="add-client">
+      <div class="add-client" data-min-role="manager">
         <input id="newClientName" placeholder="Add a client name" />
         <input id="newClientLead" placeholder="Sales lead" list="leadOptions" />
         <select id="newClientPref"></select>
@@ -273,6 +320,41 @@
       </div>
     </section>
   </main>
+
+  <!-- ===================== USERS (Admin) ===================== -->
+  <main id="usersView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Users</h3>
+        <span class="hint">Member: estimations &amp; downloads · Team Leader: + Won/Lost, delete, export · Manager: + client list · Admin: + users</span></div>
+      <form class="add-user" id="addUserForm" autocomplete="off">
+        <input name="name" placeholder="Full name" required />
+        <input name="username" placeholder="Username" required pattern="[A-Za-z0-9._\-]{3,30}" title="3-30 letters, numbers, . _ -" autocomplete="off" />
+        <select name="role" id="newUserRole"></select>
+        <input name="password" type="password" placeholder="Password (min 8)" required minlength="8" autocomplete="new-password" />
+        <button type="submit" class="btn primary">+ Add user</button>
+        <span id="userMsg" class="save-msg"></span>
+      </form>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+          <tbody id="userRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== CHANGE PASSWORD ===================== -->
+  <dialog id="pwDialog">
+    <form id="pwForm" class="dialog-body" method="dialog">
+      <div class="card-head"><h3 id="pwTitle">Change password</h3><span class="spacer"></span>
+        <button type="button" class="x" id="pwClose">×</button></div>
+      <label id="pwCurrentWrap">Current password<input name="currentPassword" type="password" autocomplete="current-password" /></label>
+      <label>New password<input name="newPassword" type="password" required minlength="8" autocomplete="new-password" /></label>
+      <label>Confirm new password<input name="confirm" type="password" required minlength="8" autocomplete="new-password" /></label>
+      <p class="error" id="pwError" hidden></p>
+      <div class="actions"><span class="spacer"></span><button type="submit" class="btn primary">Save password</button></div>
+    </form>
+  </dialog>
 
   <!-- ===================== REPLY EMAIL ===================== -->
   <dialog id="emailDialog">
