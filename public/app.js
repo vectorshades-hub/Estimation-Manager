@@ -19,12 +19,12 @@ const CLOSED = ['Submitted', 'Won', 'Lost', 'No bid placed - Less Value', 'No bi
 
 // Days from today until the due date: { text, cls } or null when there is no due date.
 // Closed estimations (Submitted / Won / Lost) are shown in neutral grey.
-function dueInfo(dueDate, status) {
+function dueInfo(dueDate, status, completed = false) {
   if (!dueDate) return null;
   const [y, m, d] = toInputDate(dueDate).split('-').map(Number);
   const [ty, tm, td] = today().split('-').map(Number);
   const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
-  const closed = CLOSED.includes(status);
+  const closed = completed || CLOSED.includes(status);
   if (days < 0) return { days, text: `${-days} day${days === -1 ? '' : 's'} overdue`, cls: closed ? 'due-closed' : 'due-over' };
   if (days === 0) return { days, text: 'Due today', cls: closed ? 'due-closed' : 'due-soon' };
   return { days, text: `${days} day${days === 1 ? '' : 's'} left`, cls: closed ? 'due-closed' : days <= 3 ? 'due-soon' : 'due-ok' };
@@ -172,9 +172,9 @@ async function loadList() {
 
   $('#rows').innerHTML = items
     .map(e => {
-      const due = dueInfo(e.dueDate, e.status);
+      const due = dueInfo(e.dueDate, e.status, e.completed);
       const won = e.status === 'Won';
-      return `<tr class="row-link ${won ? 'row-won' : ''}" data-open-id="${e._id}" title="Click to open">
+      return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="Click to open">
         <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo)}</strong></a></td>
         <td>${fmtDate(e.date)}</td>
         <td>${esc(e.projectName)}</td>
@@ -186,9 +186,13 @@ async function loadList() {
         <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
         <td>${fmtDate(e.dueDate)}</td>
         <td>${due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
-        <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
+        <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>
+          ${e.completed ? `<div><span class="done-badge" title="Completed ${e.completedAt ? fmtDate(e.completedAt) : ''}">✓ Completed</span></div>` : ''}</td>
         <td>${e.lessValue ? `<span class="lv-badge small" title="${LV_TITLE}">Less value job</span>` : '—'}</td>
         <td class="actions-cell">
+          ${e.completed
+            ? `<button class="btn small done-on" data-done="0" data-id="${e._id}" title="Click to mark as not complete">✓ Completed</button>`
+            : `<button class="btn small done-btn" data-done="1" data-id="${e._id}">Mark Complete</button>`}
           ${!can('team_leader') ? '' : won
             ? `<button class="btn small won-on" data-won="0" data-id="${e._id}" title="Click to undo (sets status back to Submitted)">✓ Won</button>`
             : `<button class="btn small won-btn" data-won="1" data-id="${e._id}">Mark Won</button>`}
@@ -230,6 +234,11 @@ $('#rows').addEventListener('click', async ev => {
     return;
   }
   const d = ev.target.dataset;
+  if (d.done) {
+    if (d.done === '0' && !confirm('Mark this estimation as not complete?')) return;
+    await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ completed: d.done === '1' }) });
+    return loadList();
+  }
   if (d.won) {
     if (d.won === '0' && !confirm('Remove the Won mark? Status will go back to Submitted.')) return;
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ status: d.won === '1' ? 'Won' : 'Submitted' }) });
@@ -281,6 +290,10 @@ function padDescriptions(page) {
 function normalizeCur() {
   cur.pages = (cur.pages && cur.pages.length ? cur.pages : [newPage('Page 1')]).map((p, i) => padDescriptions(normalizePage(p, i)));
   if (activePage >= cur.pages.length) activePage = cur.pages.length - 1;
+  // Pages that already have chart-generated lines: bring them up to date (e.g. merge older per-sheet lines)
+  cur.pages.forEach(p => {
+    if ([...p.structDescriptions, ...p.miscDescriptions].some(d => d.autoKey)) syncAutoDescriptions(p);
+  });
   if (!cur.links?.length) cur.links = [{ label: DEFAULT_LINK_LABEL, url: '' }];
   // Default contact for estimations that don't have one yet (new or older ones)
   if (!cur.contactPerson && !cur.contactEmail) {
@@ -360,7 +373,7 @@ function updateQuotePlaceholder() {
 }
 
 function updateDueInfo() {
-  const due = dueInfo(cur.dueDate, cur.status);
+  const due = dueInfo(cur.dueDate, cur.status, cur.completed);
   $('#dueInfo').innerHTML = due ? `<span class="due ${due.cls}">${due.text}</span>` : '';
 }
 
@@ -498,46 +511,44 @@ const isBlankDesc = d => !String(d.qty ?? '').trim() && !String(d.description ??
 function syncAutoDescriptions(page) {
   const counts = Object.fromEntries(page.items.map(it => [it.key, it.counts]));
   for (const [listKey, groups] of Object.entries(AUTO_DESC_GROUPS)) {
-    // What the chart says now: autoKey -> { qty, notes, name }
+    // What the chart says now: one line per item for the whole page,
+    // qty = total over all sheets, notes = the sheets it appears on ("S001,S002")
     const wanted = new Map();
-    page.sheets.forEach((sheet, c) => {
-      for (const g of groups) {
-        const qty = g.keys.reduce((a, k) => a + (+(counts[k] || [])[c] || 0), 0);
-        if (qty) wanted.set(`${g.name}|${c}`, { qty: String(qty), notes: sheet || `Sheet ${c + 1}`, name: g.name });
-      }
-    });
-    // Update generated lines where they are (keeps any drag-and-drop order), drop ones no longer in the chart
+    for (const g of groups) {
+      let qty = 0;
+      const sheets = [];
+      page.sheets.forEach((sheet, c) => {
+        const q = g.keys.reduce((a, k) => a + (+(counts[k] || [])[c] || 0), 0);
+        if (q) { qty += q; sheets.push(sheet || `Sheet ${c + 1}`); }
+      });
+      if (qty) wanted.set(g.name, { qty: String(qty), notes: sheets.join(','), name: g.name });
+    }
+    // Update generated lines where they are (keeps any drag-and-drop order), drop ones no longer in the chart.
+    // Older lines were keyed per sheet ("BEAM|0") — they fold into the one line for that item.
     const list = [];
+    const placed = new Set();
     for (const d of page[listKey] || []) {
       if (!d.autoKey) { list.push(d); continue; }
-      const w = wanted.get(d.autoKey);
-      if (!w) continue;
-      list.push({ ...d, qty: w.qty, notes: w.notes }); // keep wording the user changed
-      wanted.delete(d.autoKey);
+      const key = d.autoKey.split('|')[0];
+      const w = wanted.get(key);
+      if (!w || placed.has(key)) continue;
+      list.push({ ...d, qty: w.qty, notes: w.notes, autoKey: key }); // keep wording the user changed
+      placed.add(key);
     }
     // New generated lines go after the last generated line (or at the top)
     while (list.length && isBlankDesc(list[list.length - 1])) list.pop(); // spare blank rows are re-added below
     let at = 0;
     list.forEach((d, i) => { if (d.autoKey) at = i + 1; });
-    const added = [...wanted].map(([autoKey, w]) => ({ qty: w.qty, description: w.name, notes: w.notes, heading: false, autoKey }));
+    const added = [...wanted].filter(([key]) => !placed.has(key))
+      .map(([autoKey, w]) => ({ qty: w.qty, description: w.name, notes: w.notes, heading: false, autoKey }));
     list.splice(at, 0, ...added);
     page[listKey] = list;
   }
   padDescriptions(page);
 }
 
-// A sheet column was removed: drop its generated lines and renumber the columns after it
-function dropAutoColumn(page, i) {
-  for (const listKey of Object.keys(AUTO_DESC_GROUPS)) {
-    page[listKey] = (page[listKey] || [])
-      .filter(x => !x.autoKey || +x.autoKey.split('|')[1] !== i)
-      .map(x => {
-        if (!x.autoKey) return x;
-        const [g, c] = x.autoKey.split('|');
-        return +c > i ? { ...x, autoKey: `${g}|${+c - 1}` } : x;
-      });
-  }
-}
+// A sheet column was removed: the sync recalculates totals and sheet lists, nothing to renumber any more
+function dropAutoColumn() {}
 
 // Call after quantities / sheet names / sheet columns change
 function chartChanged() {

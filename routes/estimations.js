@@ -22,7 +22,7 @@ const { requireRole, hasRole } = require('../lib/auth');
 const router = express.Router();
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIST_FIELDS = 'createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
+const LIST_FIELDS = 'completed completedAt createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
 
 // Shared by the list and the Excel export.
 // Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd)
@@ -43,6 +43,8 @@ async function findFiltered(query, fields) {
   let items = await withFlags(await Estimation.find(filter).select(fields).sort('-createdAt'));
   if (value === 'less') items = items.filter(e => e.lessValue);
   if (value === 'priority') items = items.filter(e => e.priorityClient);
+  if (value === 'completed') items = items.filter(e => e.completed);
+  if (value === 'open') items = items.filter(e => !e.completed);
   return items;
 }
 
@@ -186,7 +188,7 @@ router.get('/:id/proposal', async (req, res, next) => {
 });
 
 const clean = ({ _id, createdAt, updatedAt, totalCount, totalHours, totalDwgs, approxTonnage, sheetCount, pageCount,
-  wonAt, createdBy, updatedBy, __v, ...data }) => data;
+  wonAt, completedAt, createdBy, updatedBy, __v, ...data }) => data;
 
 // Only Team Leaders and above may set or clear Won / Lost
 const DECIDED = ['Won', 'Lost'];

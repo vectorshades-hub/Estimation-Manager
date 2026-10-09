@@ -75,6 +75,17 @@ td.actions-cell { text-align: right; }
 .list tbody tr.row-won:hover { background: #d5f0dc; }
 .list tbody tr.row-won td:first-child { box-shadow: inset 4px 0 0 #2e9e55; }
 .list tbody tr.row-won .badge.Won { background: #2e9e55; color: #fff; }
+
+/* Completed estimations */
+.list tbody tr.row-done { background: #eaf0fb; }
+.list tbody tr.row-done:hover { background: #dde7f8; }
+.list tbody tr.row-done td:first-child { box-shadow: inset 4px 0 0 #3b6fd1; }
+.done-badge { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  background: #3b6fd1; color: #fff; white-space: nowrap; }
+.btn.done-btn { color: #2c5bb8; border-color: #b5c9ef; }
+.btn.done-btn:hover { background: #eaf0fb; }
+.btn.done-on { background: #3b6fd1; border-color: #3b6fd1; color: #fff; }
+.btn.done-on:hover { background: #2f5cb4; }
 .btn.won-btn { color: #1b7a3d; border-color: #9fd8b1; }
 .btn.won-btn:hover { background: #dff5e6; }
 .btn.won-on { background: #2e9e55; border-color: #2e9e55; color: #fff; }
@@ -400,3 +411,4 @@ dialog#pwDialog::backdrop { background: rgba(15, 25, 45, .45); }
 }
 #form .card > h3, #form .card > .card-head h3 { color: var(--text); }
 #form .card > h3:first-child, #form .card > .card-head:first-child { border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; }
+.list tbody tr.row-done .badge { box-shadow: 0 0 0 1px #b9cbec; background-color: #fff; }

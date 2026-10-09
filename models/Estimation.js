@@ -67,6 +67,8 @@ const estimationSchema = new mongoose.Schema(
     dueDate: { type: Date },
     status: { type: String, enum: STATUSES, default: 'Received' },
     wonAt: { type: Date }, // set when status becomes Won (used for awarded-per-year counts)
+    completed: { type: Boolean, default: false }, // estimation work finished ("Mark Complete")
+    completedAt: { type: Date },
     notes: { type: String, trim: true },
     createdBy: { type: String, trim: true },  // user names, set by the server
     updatedBy: { type: String, trim: true },
@@ -110,6 +112,8 @@ const estimationSchema = new mongoose.Schema(
 estimationSchema.pre('validate', function () {
   if (this.status === 'Won' && !this.wonAt) this.wonAt = new Date();
   if (this.status !== 'Won' && this.wonAt) this.wonAt = undefined;
+  if (this.completed && !this.completedAt) this.completedAt = new Date();
+  if (!this.completed && this.completedAt) this.completedAt = undefined;
   this.links = (this.links || []).filter(l => l.url || l.label);
   if (!this.pages || !this.pages.length) this.pages = [{ name: 'Page 1', sheets: [] }];
   const isBlank = d => !String(d.qty ?? '').trim() && !String(d.description ?? '').trim() && !String(d.notes ?? '').trim();
