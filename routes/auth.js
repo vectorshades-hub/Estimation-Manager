@@ -23,6 +23,7 @@ router.post('/setup', async (req, res, next) => {
     const { username, name, password } = req.body;
     auth.checkPasswordRules(password);
     const user = await User.create({ username, name, role: 'admin', passwordHash: auth.hashPassword(password) });
+    req.user = user; // for the activity log
     await auth.startSession(res, user);
     res.status(201).json(user.toSafeJSON());
   } catch (err) {
@@ -38,6 +39,7 @@ router.post('/login', async (req, res, next) => {
     if (wait) return res.status(429).json({ error: `Too many failed attempts. Try again in ${wait} minute(s).` });
 
     const user = await User.findOne({ username });
+    if (user) req.user = user; // for the activity log (also on failed attempts)
     if (!user || !auth.verifyPassword(req.body.password || '', user.passwordHash)) {
       auth.loginFailed(key);
       return res.status(401).json({ error: 'Wrong username or password' });
@@ -55,6 +57,7 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/logout', async (req, res, next) => {
   try {
+    req.user = await auth.sessionUser(req); // for the activity log
     await auth.endSession(req, res);
     res.json({ ok: true });
   } catch (err) {

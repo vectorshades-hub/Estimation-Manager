@@ -1147,28 +1147,86 @@ $('#clientSearch').oninput = () => { clearTimeout(clientSearchTimer); clientSear
 ['#clientFilter', '#prefFilter', '#leadFilter'].forEach(sel => { $(sel).onchange = renderClients; });
 
 // =====================================================================
+// ACTIVITY LOG (Admin)
+// =====================================================================
+let logPage = 1;
+const fmtDateTime = d => new Date(d).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const METHOD_CLS = { POST: 'm-post', PUT: 'm-put', PATCH: 'm-put', DELETE: 'm-del' };
+
+async function loadLog(page = logPage) {
+  const params = new URLSearchParams();
+  const set = (k, v) => { if (v) params.set(k, v); };
+  set('q', $('#logSearch').value.trim());
+  set('user', $('#logUser').value);
+  set('result', $('#logResult').value);
+  set('from', $('#logFrom').value);
+  set('to', $('#logTo').value);
+  $('#logClear').hidden = !params.toString();
+  params.set('tz', new Date().getTimezoneOffset());
+  params.set('page', page);
+  const r = await api(`/api/logs?${params}`);
+  logPage = r.page;
+
+  // User filter: keep the current choice while refreshing the options
+  const sel = $('#logUser'), chosen = sel.value;
+  sel.innerHTML = '<option value="">All users</option>' + r.users.map(u => `<option value="${esc(u.username)}">${esc(u.name)}${u.name !== u.username ? ` (${esc(u.username)})` : ''}</option>`).join('');
+  sel.value = chosen;
+
+  $('#logRows').innerHTML = r.items.map(l => `<tr class="${l.ok ? '' : 'log-failed'}">
+      <td>${fmtDateTime(l.at)}</td>
+      <td>${l.user || l.username ? `<strong>${esc(l.user || l.username)}</strong>${l.username && l.user ? `<div class="sub">${esc(l.username)}</div>` : ''}` : '<span class="sub">—</span>'}</td>
+      <td><code>${esc(l.ip) || '—'}</code></td>
+      <td><span class="method ${METHOD_CLS[l.method] || ''}" title="${esc(l.method + ' ' + l.path)}">${esc(l.method)}</span> ${esc(l.action)}</td>
+      <td class="log-target" title="${esc(l.target)}">${esc(l.target) || '—'}</td>
+      <td class="log-details" title="${esc(l.details)}">${esc(l.details) || '—'}</td>
+      <td>${l.ok ? '<span class="log-ok">✓ OK</span>'
+        : `<span class="log-err" title="${esc(l.error)}">✕ ${l.status}</span>${l.error ? `<div class="sub log-error-msg">${esc(l.error)}</div>` : ''}`}</td>
+    </tr>`).join('');
+  $('#logEmpty').hidden = r.items.length > 0;
+  $('#logCount').textContent = `${r.total.toLocaleString()} entr${r.total === 1 ? 'y' : 'ies'}`;
+  $('#logPage').textContent = `Page ${r.page} of ${r.pages}`;
+  $('#logPrev').disabled = r.page <= 1;
+  $('#logNext').disabled = r.page >= r.pages;
+}
+
+['#logUser', '#logResult', '#logFrom', '#logTo'].forEach(sel => { $(sel).onchange = () => loadLog(1); });
+let logSearchTimer;
+$('#logSearch').oninput = () => { clearTimeout(logSearchTimer); logSearchTimer = setTimeout(() => loadLog(1), 250); };
+$('#logClear').onclick = () => {
+  ['#logSearch', '#logUser', '#logResult', '#logFrom', '#logTo'].forEach(sel => { $(sel).value = ''; });
+  loadLog(1);
+};
+$('#logRefresh').onclick = () => loadLog(1);
+$('#logPrev').onclick = () => loadLog(logPage - 1);
+$('#logNext').onclick = () => loadLog(logPage + 1);
+
+// =====================================================================
 // ROUTER
 // =====================================================================
 async function route() {
   if (!me) return;
   let hash = location.hash || '#/';
-  if (hash.startsWith('#/users') && !can('admin')) { history.replaceState(null, '', '#/'); hash = '#/'; }
+  if ((hash.startsWith('#/users') || hash.startsWith('#/log')) && !can('admin')) { history.replaceState(null, '', '#/'); hash = '#/'; }
   const editing = hash.startsWith('#/new') || hash.startsWith('#/edit/');
   const clients = hash.startsWith('#/clients');
   const users = hash.startsWith('#/users');
-  $('#listView').hidden = editing || clients || users;
+  const log = hash.startsWith('#/log');
+  $('#listView').hidden = editing || clients || users || log;
   $('#editorView').hidden = !editing;
   $('#clientsView').hidden = !clients;
   $('#usersView').hidden = !users;
+  $('#logView').hidden = !log;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients && !users);
+  $('#navEst').classList.toggle('active', !clients && !users && !log);
   $('#navClients').classList.toggle('active', clients);
   $('#navUsers').classList.toggle('active', users);
+  $('#navLog').classList.toggle('active', log);
   try {
     if (hash.startsWith('#/edit/')) await openEditor(hash.slice(7));
     else if (hash.startsWith('#/new')) await openEditor(null);
     else if (clients) await loadClients();
     else if (users) await loadUsers();
+    else if (log) await loadLog(1);
     else await loadList();
   } catch (err) {
     if (err.silent) return;

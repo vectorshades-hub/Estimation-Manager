@@ -40,6 +40,7 @@
       <a href="#/" id="navEst">Estimations</a>
       <a href="#/clients" id="navClients">Clients</a>
       <a href="#/users" id="navUsers" data-min-role="admin">Users</a>
+      <a href="#/log" id="navLog" data-min-role="admin">Log</a>
     </nav>
     <span class="spacer"></span>
     <a href="#/new" class="btn primary" id="newBtn">+ New Estimation</a>
@@ -354,6 +355,40 @@
           <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
           <tbody id="userRows"></tbody>
         </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== ACTIVITY LOG (Admin) ===================== -->
+  <main id="logView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Activity log</h3>
+        <span class="hint">Every change made in the app (saves, deletes, sign-ins…) with who did it and from which IP. Page views are not logged.</span></div>
+      <div class="toolbar log-toolbar">
+        <input id="logSearch" type="search" placeholder="Search action, project, user, IP…" />
+        <select id="logUser"><option value="">All users</option></select>
+        <select id="logResult">
+          <option value="">All results</option>
+          <option value="ok">Succeeded</option>
+          <option value="failed">Failed</option>
+        </select>
+        <label class="date-filter">From<input type="date" id="logFrom" /></label>
+        <label class="date-filter">To<input type="date" id="logTo" /></label>
+        <button type="button" class="btn" id="logClear" hidden>Clear</button>
+        <button type="button" class="btn" id="logRefresh" title="Load the latest entries">↻ Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="list log-list">
+          <thead><tr><th>Date &amp; time</th><th>User</th><th>IP address</th><th>Action</th><th>Record</th><th>Details</th><th>Result</th></tr></thead>
+          <tbody id="logRows"></tbody>
+        </table>
+        <p id="logEmpty" class="empty" hidden>No log entries match.</p>
+      </div>
+      <div class="log-pager">
+        <span id="logCount" class="sub"></span><span class="spacer"></span>
+        <button type="button" class="btn small" id="logPrev">‹ Newer</button>
+        <span id="logPage" class="sub"></span>
+        <button type="button" class="btn small" id="logNext">Older ›</button>
       </div>
     </section>
   </main>

@@ -47,6 +47,22 @@ main { padding: 20px 24px; }
 .toolbar input { flex: 1; min-width: 220px; }
 .toolbar .date-filter { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; }
 .toolbar .date-filter input { flex: none; min-width: 0; width: 150px; padding: 7px 8px; }
+/* ---------- Activity log ---------- */
+.log-list td { vertical-align: top; font-size: 13px; }
+.log-list code { font-size: 12px; color: var(--muted); }
+.log-list .log-target { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.log-list .log-details { max-width: 320px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.log-list tbody tr.log-failed { background: #fff6f5; }
+.method { display: inline-block; min-width: 54px; text-align: center; padding: 1px 6px; margin-right: 4px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; background: #eceff3; color: #555e6e; }
+.method.m-post { background: #dff5e6; color: #1b7a3d; }
+.method.m-put { background: #e7eefb; color: #1f5fbf; }
+.method.m-del { background: #fde4e1; color: #b23324; }
+.log-ok { color: #1b7a3d; font-weight: 600; }
+.log-err { color: var(--danger); font-weight: 700; }
+.log-error-msg { white-space: normal; max-width: 220px; }
+.log-pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+
 /* Due: Yesterday | Today | Tomorrow quick filter (segmented toggle) */
 .due-quick { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff; }
 .due-quick-label { display: flex; align-items: center; padding: 0 10px; font-size: 12px; font-weight: 600; color: var(--muted);

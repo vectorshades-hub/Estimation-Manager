@@ -6,6 +6,8 @@ const estimationRoutes = require('./routes/estimations');
 const clientRoutes = require('./routes/clients');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
+const logRoutes = require('./routes/logs');
+const requestLog = require('./lib/requestLog');
 const { authenticate, requireRole } = require('./lib/auth');
 
 const app = express();
@@ -15,7 +17,8 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/estima
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 'loopback');
-app.use('/api/auth', authRoutes);              // login / logout / first-time setup (no sign-in needed)
+app.use('/api', requestLog);                   // activity log: every request except GET (user, IP, action, result)
+app.use('/api/auth', authRoutes);             // login / logout / first-time setup (no sign-in needed)
 // Sign-in can be switched off with AUTH_ENABLED=false in .env: everyone then works with full (admin) rights
 const AUTH_ENABLED = process.env.AUTH_ENABLED === 'true';
 const openAccess = (req, res, next) => { req.user = { name: '', role: 'admin' }; next(); };
@@ -23,6 +26,7 @@ app.use('/api', AUTH_ENABLED ? authenticate : openAccess); // everything else re
 app.use('/api/estimations', estimationRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/users', requireRole('admin'), userRoutes);
+app.use('/api/logs', requireRole('admin'), logRoutes);
 
 app.use((err, req, res, next) => {
   if (err.name === 'ValidationError') {
