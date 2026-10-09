@@ -22,12 +22,12 @@ const { requireRole, hasRole } = require('../lib/auth');
 const router = express.Router();
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIST_FIELDS = 'completed completedAt createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt';
+const LIST_FIELDS = 'completed completedAt createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt connectionDesign';
 
 // Shared by the list and the Excel export.
-// Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd)
+// Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd), due (due date, yyyy-mm-dd)
 async function findFiltered(query, fields) {
-  const { q, status, value, from, to } = query;
+  const { q, status, value, from, to, due } = query;
   const filter = {};
   if (status) filter.status = status;
   if (q) {
@@ -40,6 +40,7 @@ async function findFiltered(query, fields) {
     if (isDate(from)) filter.date.$gte = new Date(`${from}T00:00:00.000Z`);
     if (isDate(to)) filter.date.$lte = new Date(`${to}T23:59:59.999Z`);
   }
+  if (isDate(due)) filter.dueDate = { $gte: new Date(`${due}T00:00:00.000Z`), $lte: new Date(`${due}T23:59:59.999Z`) };
   let items = await withFlags(await Estimation.find(filter).select(fields).sort('-createdAt'));
   if (value === 'less') items = items.filter(e => e.lessValue);
   if (value === 'priority') items = items.filter(e => e.priorityClient);
@@ -219,6 +220,27 @@ router.put('/:id', async (req, res, next) => {
     await doc.save(); // save() so derived totals are recomputed
     await Client.ensure(doc.clientName);
     res.json(doc);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Descriptions "Auto fetch" switch: saved straight away (with that page's description lines) so it survives a refresh
+router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
+  try {
+    const i = Number(req.params.page);
+    const doc = await Estimation.findById(req.params.id, 'pages.name');
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    const { autoDesc, structDescriptions, miscDescriptions, pageName } = req.body;
+    // Pages added / removed / renamed but not saved yet: the index may point at another page
+    if (!Number.isInteger(i) || i < 0 || i >= doc.pages.length || (pageName !== undefined && doc.pages[i].name !== pageName)) {
+      return res.status(409).json({ error: 'Page not saved yet' });
+    }
+    const set = { [`pages.${i}.autoDesc`]: !!autoDesc };
+    if (Array.isArray(structDescriptions)) set[`pages.${i}.structDescriptions`] = structDescriptions;
+    if (Array.isArray(miscDescriptions)) set[`pages.${i}.miscDescriptions`] = miscDescriptions;
+    await Estimation.updateOne({ _id: doc._id }, { $set: set }, { runValidators: true });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

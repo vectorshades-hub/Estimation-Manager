@@ -48,6 +48,7 @@ const pageSchema = new mongoose.Schema(
     weight: [String],
     structDescriptions: [descSchema],
     miscDescriptions: [descSchema],
+    autoDesc: { type: Boolean, default: true }, // fill the description lines from the chart quantities
   },
   { _id: false }
 );
@@ -89,6 +90,7 @@ const estimationSchema = new mongoose.Schema(
     submittalWeeks: { type: Number, min: 0 },
     signerName: { type: String, trim: true },
     signerTitle: { type: String, trim: true },
+    connectionDesign: { type: String, enum: ['Yes', 'No'], default: 'No' },
     proposalExclusions: { type: [String], default: () => [...DEFAULT_PROPOSAL_EXCLUSIONS] },
 
     // SharePoint folder links for the submission documents

@@ -152,6 +152,10 @@ $('#pwForm').addEventListener('submit', async ev => {
 // =====================================================================
 // LIST VIEW
 // =====================================================================
+// Due date quick filter: -1 yesterday, 0 today, 1 tomorrow, null off
+let dueOffset = null;
+const addDays = (ymd, n) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
 // Current list filters as query parameters (used by both the list and the Excel export)
 function listParams() {
   const params = new URLSearchParams();
@@ -159,10 +163,14 @@ function listParams() {
   set('q', $('#search').value.trim());
   set('status', $('#statusFilter').value);
   set('value', $('#valueFilter').value);
+  if (dueOffset !== null) set('due', addDays(today(), dueOffset));
   set('from', $('#fromDate').value);
   set('to', $('#toDate').value);
   return params;
 }
+
+const TRASH_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+const TICK_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
 
 async function loadList() {
   const params = listParams();
@@ -174,33 +182,36 @@ async function loadList() {
     .map(e => {
       const due = dueInfo(e.dueDate, e.status, e.completed);
       const won = e.status === 'Won';
-      return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="Click to open">
+      return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} — click to open` : 'Click to open'}">
         <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo)}</strong></a></td>
         <td>${fmtDate(e.date)}</td>
-        <td>${esc(e.projectName)}</td>
+        <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
         <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
         <td>${esc(e.doneBy) || '—'}</td>
-        <td class="num">${e.sheetCount || 0}${e.pageCount > 1 ? `<div class="sub">${e.pageCount} pages</div>` : ''}</td>
         <td class="num">${fmt(e.totalHours)}</td>
-        <td class="num">${fmt(e.totalDwgs, 0)}</td>
         <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
         <td>${fmtDate(e.dueDate)}</td>
-        <td>${due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
-        <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>
-          ${e.completed ? `<div><span class="done-badge" title="Completed ${e.completedAt ? fmtDate(e.completedAt) : ''}">✓ Completed</span></div>` : ''}</td>
-        <td>${e.lessValue ? `<span class="lv-badge small" title="${LV_TITLE}">Less value job</span>` : '—'}</td>
-        <td class="actions-cell">
+        <td>${e.completed ? '<span class="due due-closed">Completed</span>' : due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
+        <td class="center">${(() => {
+          const yes = e.connectionDesign === 'Yes';
+          return `<button type="button" class="cd-badge${yes ? ' yes' : ''}" data-cd="${yes ? 'No' : 'Yes'}" data-id="${e._id}"
+            data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Click to change to ${yes ? 'No' : 'Yes'}">${yes ? 'Yes' : 'No'}</button>`;
+        })()}</td>
+        <td>${e.completed
+          ? `<span class="done-badge" title="Completed ${e.completedAt ? fmtDate(e.completedAt) : ''}">✓ Completed</span>`
+          : `<span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>`}</td>
+        <td>${e.lessValue ? `<span class="lv-badge small" title="Less value job — ${LV_TITLE}">LVJ</span>` : '—'}</td>
+        <td class="center">
           ${e.completed
-            ? `<button class="btn small done-on" data-done="0" data-id="${e._id}" title="Click to mark as not complete">✓ Completed</button>`
-            : `<button class="btn small done-btn" data-done="1" data-id="${e._id}">Mark Complete</button>`}
+            ? `<button class="btn small icon-btn done-on" data-done="0" data-id="${e._id}" title="Completed — click to mark as not complete" aria-label="Mark as not complete">${TICK_ICON}</button>`
+            : `<button class="btn small icon-btn done-btn" data-done="1" data-id="${e._id}" title="Mark as complete" aria-label="Mark as complete">${TICK_ICON}</button>`}
+        </td>
+        <td class="actions-cell">
           ${!can('team_leader') ? '' : won
             ? `<button class="btn small won-on" data-won="0" data-id="${e._id}" title="Click to undo (sets status back to Submitted)">✓ Won</button>`
             : `<button class="btn small won-btn" data-won="1" data-id="${e._id}">Mark Won</button>`}
-          <a class="btn small" href="#/edit/${e._id}">Edit</a>
           ${e.links?.find(l => l.url) ? `<a class="btn small" href="${esc(e.links.find(l => l.url).url)}" target="_blank" rel="noopener" title="Open SharePoint folder">Folder</a>` : ''}
-          <a class="btn small" href="${API}/${e._id}/excel">Excel</a>
-          <a class="btn small" href="${API}/${e._id}/proposal" title="Download proposal (Word)">Proposal</a>
-          ${can('team_leader') ? `<button class="btn small danger" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}">Delete</button>` : ''}
+          ${can('team_leader') ? `<button class="btn small danger icon-btn" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Delete" aria-label="Delete">${TRASH_ICON}</button>` : ''}
         </td>
       </tr>`;
     })
@@ -239,6 +250,11 @@ $('#rows').addEventListener('click', async ev => {
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ completed: d.done === '1' }) });
     return loadList();
   }
+  if (d.cd) {
+    if (!confirm(`Change Connection design to "${d.cd}" for ${d.label}?`)) return;
+    await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ connectionDesign: d.cd }) });
+    return loadList();
+  }
   if (d.won) {
     if (d.won === '0' && !confirm('Remove the Won mark? Status will go back to Submitted.')) return;
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ status: d.won === '1' ? 'Won' : 'Submitted' }) });
@@ -270,7 +286,7 @@ function blankEstimation(jobNo) {
     scope: '', complexity: '', deliverables: [],
     coordinationNeeded: '', durationWeeks: null, quotedTonnage: null,
     assumptions: '', remark: '',
-    proposalDate: today(), quoteNo: '', submittalWeeks: null, signerName: '', signerTitle: '',
+    proposalDate: today(), quoteNo: '', submittalWeeks: null, signerName: '', signerTitle: '', connectionDesign: 'No',
     links: [{ label: DEFAULT_LINK_LABEL, url: '' }],
   };
 }
@@ -292,7 +308,7 @@ function normalizeCur() {
   if (activePage >= cur.pages.length) activePage = cur.pages.length - 1;
   // Pages that already have chart-generated lines: bring them up to date (e.g. merge older per-sheet lines)
   cur.pages.forEach(p => {
-    if ([...p.structDescriptions, ...p.miscDescriptions].some(d => d.autoKey)) syncAutoDescriptions(p);
+    if (p.autoDesc && [...p.structDescriptions, ...p.miscDescriptions].some(d => d.autoKey)) syncAutoDescriptions(p);
   });
   if (!cur.links?.length) cur.links = [{ label: DEFAULT_LINK_LABEL, url: '' }];
   // Default contact for estimations that don't have one yet (new or older ones)
@@ -350,6 +366,7 @@ function fillForm() {
     if (el.name === 'exclusions' || el.name === 'proposalExclusions') el.value = (cur[el.name] || []).join('\n');
     else if (el.name === 'deliverables') el.checked = (cur.deliverables || []).includes(el.value);
     else if (el.type === 'date') el.value = toInputDate(cur[el.name]);
+    else if (el.name === 'connectionDesign') el.value = cur.connectionDesign || 'No';
     else el.value = cur[el.name] ?? '';
   }
   $('#editorTitle').textContent = cur._id ? `${cur.jobNo} ${cur.projectName}` : 'New Estimation';
@@ -412,6 +429,7 @@ function renderPage() {
   renderExtras();
   renderDesc('structDescriptions');
   renderDesc('miscDescriptions');
+  renderAutoDescToggle();
 }
 
 function switchPage(i) {
@@ -552,9 +570,65 @@ function dropAutoColumn() {}
 
 // Call after quantities / sheet names / sheet columns change
 function chartChanged() {
+  if (!pg().autoDesc) return;
   syncAutoDescriptions(pg());
   renderDesc('structDescriptions');
   renderDesc('miscDescriptions');
+}
+
+// ---------- Auto fetch Yes/No switch (per page) ----------
+function renderAutoDescToggle() {
+  const on = pg().autoDesc !== false;
+  $('#autoDescToggle').checked = on;
+  $('#autoDescState').textContent = on ? 'Yes' : 'No';
+}
+
+$('#autoDescToggle').addEventListener('change', ev => {
+  const page = pg();
+  const on = ev.target.checked;
+  const msg = on
+    ? 'Turn auto fetch ON?\n\nDescription lines will be filled from the estimation chart. Existing lines with the same description will have their quantity and notes replaced by the chart values.'
+    : 'Turn auto fetch OFF?\n\nLines already fetched from the chart are kept as normal editable lines, and chart changes will no longer update them.';
+  if (!confirm(msg)) { ev.target.checked = !on; return; }
+  page.autoDesc = on;
+  const keys = ['structDescriptions', 'miscDescriptions'];
+  if (on) {
+    // Re-link lines that were fetched before (or typed with the same wording) so they are not duplicated
+    for (const key of keys) {
+      const names = new Set(AUTO_DESC_GROUPS[key].map(g => g.name));
+      const taken = new Set(page[key].filter(d => d.autoKey).map(d => d.autoKey.split('|')[0]));
+      page[key].forEach(d => {
+        const name = String(d.description || '').trim().toUpperCase();
+        if (!d.autoKey && names.has(name) && !taken.has(name)) { d.autoKey = name; taken.add(name); }
+      });
+    }
+    syncAutoDescriptions(page);
+  } else {
+    for (const key of keys) page[key].forEach(d => { delete d.autoKey; });
+  }
+  renderDesc('structDescriptions');
+  renderDesc('miscDescriptions');
+  renderAutoDescToggle();
+  saveAutoDesc(page);
+});
+
+// Save the switch (and the page's description lines it just changed) right away, so a refresh keeps it
+async function saveAutoDesc(page) {
+  if (!cur._id) { dirty = true; return; } // not created yet: kept by the normal Save
+  const trimmed = list => { const l = [...list]; while (l.length && isBlankDesc(l[l.length - 1])) l.pop(); return l; };
+  try {
+    await api(`${API}/${cur._id}/pages/${activePage}/auto-desc`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        autoDesc: page.autoDesc, pageName: (page.name || '').trim(),
+        structDescriptions: trimmed(page.structDescriptions), miscDescriptions: trimmed(page.miscDescriptions),
+      }),
+    });
+    $('#saveMsg').textContent = `Auto fetch ${page.autoDesc ? 'Yes' : 'No'} saved ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    dirty = true; // e.g. a new page that isn't saved yet: the normal Save stores it
+    $('#saveMsg').textContent = 'Auto fetch changed — click Save to keep it';
+  }
 }
 
 function renderDesc(key) {
@@ -786,14 +860,36 @@ $('#deletePageBtn').onclick = () => {
   switchPage(activePage);
 };
 
-async function save() {
-  $('#formError').hidden = true;
-  if (!form.reportValidity()) return false;
-  const body = { ...cur, pages: cur.pages.map(p => ({ ...p, name: (p.name || '').trim(), sheets: p.sheets.map(s => s.trim()) })) };
+const saveBody = () => ({ ...cur, pages: cur.pages.map(p => ({ ...p, name: (p.name || '').trim(), sheets: p.sheets.map(s => s.trim()) })) });
+// Fields the server sets; an auto-save copies just these back so it never touches what the user is typing
+const SERVER_FIELDS = ['updatedAt', 'updatedBy', 'createdAt', 'createdBy', 'totalCount', 'totalHours', 'totalDwgs', 'approxTonnage',
+  'sheetCount', 'pageCount', 'wonAt', 'completedAt', '__v'];
+
+let saveInFlight = null;
+async function save(opts = {}) {
+  if (saveInFlight) {
+    await saveInFlight; // don't send two saves at once
+    if (opts.auto) return true;
+  }
+  saveInFlight = doSave(opts);
+  try { return await saveInFlight; } finally { saveInFlight = null; }
+}
+
+async function doSave({ auto = false } = {}) {
+  if (auto ? !form.checkValidity() : !form.reportValidity()) return false;
+  if (!auto) $('#formError').hidden = true;
+  const body = saveBody();
+  const sent = JSON.stringify(body);
   try {
     const saved = cur._id
-      ? await api(`${API}/${cur._id}`, { method: 'PUT', body: JSON.stringify(body) })
-      : await api(API, { method: 'POST', body: JSON.stringify(body) });
+      ? await api(`${API}/${cur._id}`, { method: 'PUT', body: sent })
+      : await api(API, { method: 'POST', body: sent });
+    if (auto) {
+      SERVER_FIELDS.forEach(k => { if (k in saved) cur[k] = saved[k]; });
+      dirty = JSON.stringify(saveBody()) !== sent; // still dirty if edited while saving
+      $('#saveMsg').textContent = `Auto-saved ${new Date().toLocaleTimeString()}`;
+      return true;
+    }
     const wasNew = !cur._id;
     cur = saved;
     normalizeCur();
@@ -810,6 +906,7 @@ async function save() {
     renderLinks();
     return true;
   } catch (err) {
+    if (auto) { $('#saveMsg').textContent = `Auto-save failed: ${err.message}`; return false; }
     $('#formError').textContent = err.message;
     $('#formError').hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -817,7 +914,13 @@ async function save() {
   }
 }
 
-$('#saveBtn').onclick = save;
+$('#saveBtn').onclick = () => save();
+
+// Auto-save every 5 minutes: only estimations that already exist, have unsaved changes and pass the required fields
+const AUTO_SAVE_MS = 5 * 60 * 1000;
+setInterval(() => {
+  if (dirty && cur?._id && !$('#editorView').hidden) save({ auto: true });
+}, AUTO_SAVE_MS);
 $('#packageBtn').onclick = async () => {
   if (dirty && !(await save())) return;
   location.href = `${API}/${cur._id}/package`;
@@ -1087,6 +1190,22 @@ window.addEventListener('hashchange', ev => {
 });
 window.addEventListener('beforeunload', ev => { if (dirty) ev.preventDefault(); });
 
+// The chart scrolls inside its own box, so CSS sticky alone pins its headings to that box.
+// When the page scrolls the box under the editor bar, push the headings down to sit just below the bar.
+function pinChartHeadings() {
+  const bar = $('#editorView .editor-bar');
+  if (!bar || $('#editorView').hidden) return;
+  const barBottom = bar.getBoundingClientRect().bottom;
+  document.querySelectorAll('.chart-wrap').forEach(wrap => {
+    const head = wrap.querySelector('thead');
+    const maxOffset = Math.max(0, wrap.clientHeight - (head ? head.offsetHeight : 0));
+    const offset = Math.min(maxOffset, Math.max(0, barBottom - wrap.getBoundingClientRect().top));
+    wrap.style.setProperty('--head-offset', `${offset}px`);
+  });
+}
+window.addEventListener('scroll', pinChartHeadings, { passive: true });
+window.addEventListener('resize', pinChartHeadings);
+
 const statusOpts = STATUSES.map(s => `<option>${s}</option>`).join('');
 $('#statusFilter').insertAdjacentHTML('beforeend', statusOpts);
 $('#statusSelect').innerHTML = statusOpts;
@@ -1096,8 +1215,21 @@ $('#fromDate').onchange = loadList;
 $('#toDate').onchange = loadList;
 $('#clearFilters').onclick = () => {
   ['#search', '#statusFilter', '#valueFilter', '#fromDate', '#toDate'].forEach(sel => { $(sel).value = ''; });
-  loadList();
+  setDueOffset(null);
 };
+function setDueOffset(n) {
+  dueOffset = n;
+  document.querySelectorAll('.due-quick button').forEach(b => {
+    const on = n !== null && +b.dataset.dueOffset === n;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  loadList();
+}
+// Click a day to filter by it; click it again to show all
+document.querySelectorAll('.due-quick button').forEach(b => {
+  b.onclick = () => setDueOffset(+b.dataset.dueOffset === dueOffset ? null : +b.dataset.dueOffset);
+});
 $('#exportBtn').onclick = () => { location.href = `${API}/export?${listParams()}`; };
 let searchTimer;
 $('#search').placeholder = 'Search No., project, client, done by, scope…';

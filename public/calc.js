@@ -125,6 +125,7 @@
       weight: ['', '', ''],
       structDescriptions: [],
       miscDescriptions: [],
+      autoDesc: true,
     };
   }
 
@@ -145,6 +146,7 @@
       weight: pad(p && p.weight, 3, () => ''),
       structDescriptions: [...((p && p.structDescriptions) || [])],
       miscDescriptions: [...((p && p.miscDescriptions) || [])],
+      autoDesc: !(p && p.autoDesc === false),
     };
   }
 

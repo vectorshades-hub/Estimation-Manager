@@ -66,6 +66,12 @@
         <option value="open">Not completed</option>
         <option value="completed">Completed</option>
       </select>
+      <div class="due-quick" role="group" aria-label="Due date">
+        <span class="due-quick-label">Due</span>
+        <button type="button" data-due-offset="-1" title="Show estimations due yesterday">Yesterday</button>
+        <button type="button" data-due-offset="0" title="Show estimations due today">Today</button>
+        <button type="button" data-due-offset="1" title="Show estimations due tomorrow">Tomorrow</button>
+      </div>
       <label class="date-filter">From<input type="date" id="fromDate" /></label>
       <label class="date-filter">To<input type="date" id="toDate" /></label>
       <button type="button" class="btn" id="clearFilters" title="Clear all filters">Clear</button>
@@ -81,14 +87,14 @@
             <th>Project</th>
             <th>Client</th>
             <th>Done By</th>
-            <th class="num">Sheets</th>
             <th class="num">Total Hrs</th>
-            <th class="num">No. Dwgs</th>
             <th class="num">Tonnage</th>
             <th>Due Date</th>
             <th>Days Left</th>
+            <th class="center">Conn. Design</th>
             <th>Status</th>
             <th>Job Value</th>
+            <th class="center">Completed</th>
             <th></th>
           </tr>
         </thead>
@@ -117,7 +123,7 @@
 
     <form id="form" autocomplete="off" onsubmit="return false">
       <div class="top-grid">
-      <section class="card accent-blue">
+      <section class="card accent-blue details-card">
         <h3>Details</h3>
         <div class="fields">
           <label>No. *<input name="jobNo" required /></label>
@@ -185,6 +191,7 @@
           <label title="More than 10 weeks adds: “- Sequencing Release +/- 2 Weeks for Duration of the project”">Schedule of submittals (weeks)<input name="submittalWeeks" type="number" min="0" step="1" /></label>
           <label>Signed by (name)<input name="signerName" placeholder="Lee Luck" /></label>
           <label>Signed by (title)<input name="signerTitle" placeholder="Lead Estimator" /></label>
+          <label>Connection design<select name="connectionDesign"><option>No</option><option>Yes</option></select></label>
         </div>
         <label class="full proposal-excl">Proposal exclusions (one per line — printed as a. b. c. in the Word file)
           <textarea name="proposalExclusions" rows="4"></textarea></label>
@@ -221,7 +228,13 @@
 
         <div class="desc-col">
           <section class="card desc-card">
-            <div class="card-head"><h3>Descriptions <span class="page-chip page-name"></span></h3></div>
+            <div class="card-head"><h3>Descriptions <span class="page-chip page-name"></span></h3><span class="spacer"></span>
+              <label class="switch" title="Fill the description lines from the estimation chart quantities">
+                <span class="switch-text">Auto fetch</span>
+                <input type="checkbox" id="autoDescToggle" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="switch-state" id="autoDescState">Yes</span>
+              </label></div>
             <div class="desc-sub">
               <div class="desc-sub-head"><h4>Struct. Description</h4><span class="spacer"></span>
                 <button type="button" class="btn small" data-add="structDescriptions">+ Add line</button></div>
