@@ -29,10 +29,12 @@ Each estimation can be downloaded as an Excel "ESTIMATION CHART" with the same l
 - Additional hours note, Arch / Span / Weight boxes, struct and misc description lists, and exclusions.
 
 ## Users and sign-in
-**Currently switched off** (`AUTH_ENABLED=false` in `.env`): no login, everyone has full access. Set `AUTH_ENABLED=true` and restart to turn it on.
+**Switched on** (`AUTH_ENABLED=true` in `.env`). Set `AUTH_ENABLED=false` and restart to turn sign-in off (no login, everyone has full access).
 
-The first time the app is opened (no users yet) it asks you to create the **Admin** account. After that everyone signs in.
-Admin adds users on the **Users** page (top menu) and can change roles, reset passwords and disable accounts.
+The first time the app is opened (no users yet) it asks you to create the **Admin** account. After that everyone signs in
+with their **email** and password. Admin adds users on the **Users** page (top menu) and can change emails and roles,
+reset passwords and disable accounts. (Accounts created when sign-in used usernames keep their old username as their
+sign-in "email" until the Admin changes it there.)
 
 | Role | Can do |
 |---|---|
@@ -52,6 +54,11 @@ If the Admin password is lost, delete the user from the `users` collection in Mo
 - An estimation is marked **Less value job** when the client is **not** a priority client **and** total hours are **below 175**
   (`LESS_VALUE_HOURS` in `public/calc.js`). The flag is evaluated live, so changing a client's priority updates it immediately.
 
+## Notifications
+The **Notifications** page (top menu, with an unread count) lists estimations that were changed after being marked
+**Completed**: edits (with the old → new value of each simple field), Won / connection design changes, marking it not complete,
+and deleting it — with who did it and when. Entries can be marked read / unread, or all read at once.
+
 ## Reply email
 In the editor, **✉ Reply Email** builds the reply ("Please find attached excel sheet of … project." + ITEM/DETAILS table).
 Click **Copy email**, open the client's mail in Outlook, click **Reply**, paste, and attach the Excel.
@@ -63,7 +70,7 @@ and the Excel output always agree. The Excel layout is built in `lib/excel.js`.
 ## API
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/estimations?q=&status=&value=&from=&to=` | List / search / filter |
+| GET | `/api/estimations?q=&status=&value=&from=&to=&due=` | List / search / filter (`due` = one or more yyyy-mm-dd, comma-separated) |
 | GET | `/api/estimations/export?q=&status=&value=less\|priority&from=&to=` | Export filtered list to Excel (AutoFilter + totals) |
 | GET | `/api/estimations/stats/summary` | Totals and per-status counts |
 | GET | `/api/estimations/next-no` | Suggested next No. |
@@ -72,3 +79,5 @@ and the Excel output always agree. The Excel layout is built in `lib/excel.js`.
 | POST | `/api/estimations` | Create |
 | PUT | `/api/estimations/:id` | Update |
 | DELETE | `/api/estimations/:id` | Delete |
+| GET | `/api/notifications?unread=1&page=` | Changes made to completed estimations |
+| PUT | `/api/notifications/:id` / `/api/notifications/read-all` | Mark read / unread |

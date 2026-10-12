@@ -18,22 +18,22 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { username, name, role, password } = req.body;
+    const { email, name, role, password } = req.body;
     auth.checkPasswordRules(password);
-    const user = await User.create({ username, name, role, passwordHash: auth.hashPassword(password) });
+    const user = await User.create({ email, name, role, passwordHash: auth.hashPassword(password) });
     res.status(201).json(user.toSafeJSON());
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'That username is already taken' });
+    if (err.code === 11000) return res.status(409).json({ error: 'A user with that email already exists' });
     next(err);
   }
 });
 
-// Update name / role / active, or reset the password
+// Update name / email / role / active, or reset the password
 router.put('/:id', async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'Not found' });
-    const { name, role, active, password } = req.body;
+    const { name, email, role, active, password } = req.body;
     const self = user._id.equals(req.user._id);
 
     // Never leave the system without an active admin
@@ -45,6 +45,7 @@ router.put('/:id', async (req, res, next) => {
     if (self && active === false) return res.status(400).json({ error: 'You cannot disable your own account' });
 
     if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (active !== undefined) user.active = !!active;
     if (password) {
@@ -55,6 +56,7 @@ router.put('/:id', async (req, res, next) => {
     if (password || active === false) await auth.endAllSessions(user._id); // force sign-in again
     res.json(user.toSafeJSON());
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'A user with that email already exists' });
     next(err);
   }
 });

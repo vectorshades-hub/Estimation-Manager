@@ -229,6 +229,21 @@ table.desc { width: 100%; border-collapse: collapse; }
 .nav a { color: #c9d5ea; padding: 6px 12px; border-radius: 6px; font-size: 14px; }
 .nav a:hover { background: rgba(255,255,255,.08); color: #fff; }
 .nav a.active { background: rgba(255,255,255,.15); color: #fff; font-weight: 600; }
+.notif-count { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 4px; border-radius: 999px;
+  background: #e5484d; color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 16px; }
+
+/* Notifications page */
+.notif-list td { vertical-align: top; font-size: 13px; }
+.notif-list tbody tr.notif-unread { background: #f3f8ff; }
+.notif-list tbody tr.notif-unread td:first-child { box-shadow: inset 3px 0 0 var(--primary); font-weight: 600; }
+.notif-list tbody tr.notif-read { color: var(--muted); }
+.notif-changes { margin: 0; padding-left: 16px; }
+.notif-changes li { margin: 1px 0; }
+.notif-changes .old-val { color: #b23324; text-decoration: line-through; }
+.notif-changes .new-val { color: #1b7a3d; }
+.notif-action { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e7eefb; color: #1f5fbf; white-space: nowrap; }
+.notif-action.warn { background: #fde4e1; color: #b23324; }
+.list .sl-no { width: 1%; color: var(--muted); }
 
 /* ---------- Priority clients / less value jobs ---------- */
 .star { color: #e0a100; }

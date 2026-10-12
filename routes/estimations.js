@@ -18,6 +18,7 @@ const { buildExport } = require('../lib/exportList');
 const { buildProposal, proposalFileName } = require('../lib/proposal');
 const JSZip = require('jszip');
 const { requireRole, hasRole } = require('../lib/auth');
+const notify = require('../lib/notify');
 
 const router = express.Router();
 
@@ -25,7 +26,8 @@ const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const LIST_FIELDS = 'completed completedAt createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt connectionDesign';
 
 // Shared by the list and the Excel export.
-// Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd), due (due date, yyyy-mm-dd)
+// Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd),
+// due (due date(s), yyyy-mm-dd, comma-separated for several days)
 async function findFiltered(query, fields) {
   const { q, status, value, from, to, due } = query;
   const filter = {};
@@ -40,7 +42,10 @@ async function findFiltered(query, fields) {
     if (isDate(from)) filter.date.$gte = new Date(`${from}T00:00:00.000Z`);
     if (isDate(to)) filter.date.$lte = new Date(`${to}T23:59:59.999Z`);
   }
-  if (isDate(due)) filter.dueDate = { $gte: new Date(`${due}T00:00:00.000Z`), $lte: new Date(`${due}T23:59:59.999Z`) };
+  const dueDays = String(due || '').split(',').filter(isDate);
+  if (dueDays.length) {
+    filter.$and = [{ $or: dueDays.map(d => ({ dueDate: { $gte: new Date(`${d}T00:00:00.000Z`), $lte: new Date(`${d}T23:59:59.999Z`) } })) }];
+  }
   let items = await withFlags(await Estimation.find(filter).select(fields).sort('-createdAt'));
   if (value === 'less') items = items.filter(e => e.lessValue);
   if (value === 'priority') items = items.filter(e => e.priorityClient);
@@ -49,12 +54,15 @@ async function findFiltered(query, fields) {
   return items;
 }
 
-function describeFilters({ q, status, value, from, to }) {
+function describeFilters({ q, status, value, from, to, due }) {
   return [
     q && `Search: "${q}"`,
     status && `Status: ${status}`,
     value === 'less' && 'Less value jobs only',
     value === 'priority' && 'Priority clients only',
+    value === 'open' && 'Not completed only',
+    value === 'completed' && 'Completed only',
+    due && `Due: ${String(due).split(',').join(', ')}`,
     from && `Date from: ${from}`,
     to && `Date to: ${to}`,
   ].filter(Boolean).join(';  ');
@@ -216,9 +224,11 @@ router.put('/:id', async (req, res, next) => {
     const doc = await Estimation.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     checkStatusChange(req, doc.status, req.body.status);
+    const before = notify.snapshot(doc);
     doc.set({ ...clean(req.body), ...(req.user.name ? { updatedBy: req.user.name } : {}) });
     await doc.save(); // save() so derived totals are recomputed
     await Client.ensure(doc.clientName);
+    await notify.recordIfCompleted(before, doc, req.user);
     res.json(doc);
   } catch (err) {
     next(err);
@@ -229,7 +239,7 @@ router.put('/:id', async (req, res, next) => {
 router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
   try {
     const i = Number(req.params.page);
-    const doc = await Estimation.findById(req.params.id, 'pages.name');
+    const doc = await Estimation.findById(req.params.id, 'pages.name completed completedAt jobNo projectName clientName');
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const { autoDesc, structDescriptions, miscDescriptions, pageName } = req.body;
     // Pages added / removed / renamed but not saved yet: the index may point at another page
@@ -240,6 +250,10 @@ router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
     if (Array.isArray(structDescriptions)) set[`pages.${i}.structDescriptions`] = structDescriptions;
     if (Array.isArray(miscDescriptions)) set[`pages.${i}.miscDescriptions`] = miscDescriptions;
     await Estimation.updateOne({ _id: doc._id }, { $set: set }, { runValidators: true });
+    if (doc.completed) {
+      await notify.record(doc, req.user, 'Edited after completion',
+        [{ field: 'pages', label: `Descriptions auto fetch (${doc.pages[i].name}) set to ${autoDesc ? 'Yes' : 'No'}` }]);
+    }
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -250,6 +264,7 @@ router.delete('/:id', requireRole('team_leader'), async (req, res, next) => {
   try {
     const item = await Estimation.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
+    if (item.completed) await notify.record(item, req.user, 'Deleted');
     res.json({ ok: true });
   } catch (err) {
     next(err);

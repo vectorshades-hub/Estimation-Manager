@@ -7,6 +7,7 @@ const clientRoutes = require('./routes/clients');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const logRoutes = require('./routes/logs');
+const notificationRoutes = require('./routes/notifications');
 const requestLog = require('./lib/requestLog');
 const { authenticate, requireRole } = require('./lib/auth');
 
@@ -25,6 +26,7 @@ const openAccess = (req, res, next) => { req.user = { name: '', role: 'admin' };
 app.use('/api', AUTH_ENABLED ? authenticate : openAccess); // everything else requires a signed-in user (when enabled)
 app.use('/api/estimations', estimationRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/notifications', requireRole('team_leader'), notificationRoutes);
 app.use('/api/users', requireRole('admin'), userRoutes);
 app.use('/api/logs', requireRole('admin'), logRoutes);
 
@@ -35,7 +37,7 @@ app.use((err, req, res, next) => {
   if (err.name === 'CastError') return res.status(400).json({ error: 'Invalid id' });
   if (err.code === 11000) {
     const msg = err.keyValue?.jobNo ? `No. "${err.keyValue.jobNo}" already exists`
-      : err.keyValue?.username ? 'That username is already taken' : 'This client is already in the list';
+      : err.keyValue?.email ? 'A user with that email already exists' : 'This client is already in the list';
     return res.status(409).json({ error: msg });
   }
   if (err.status) return res.status(err.status).json({ error: err.message });
@@ -50,6 +52,10 @@ mongoose
     await require('./models/Estimation').syncIndexes(); // drop stale indexes from older schema versions
     const migrated = await require('./models/Estimation').migrateToPages();
     if (migrated) console.log(`Moved ${migrated} estimation chart(s) into pages`);
+    const User = require('./models/User');
+    const movedUsers = await User.migrateToEmail();
+    if (movedUsers) console.log(`Moved ${movedUsers} user(s) from username to email sign-in — update their emails on the Users page`);
+    await User.syncIndexes();
     const Client = require('./models/Client');
     await Client.syncIndexes();
     // Make sure every client used in an estimation is in the client list

@@ -63,7 +63,7 @@ function showAuth(setupNeeded = false) {
   $('#authView').hidden = false;
   $('#loginForm').hidden = setupNeeded;
   $('#setupForm').hidden = !setupNeeded;
-  (setupNeeded ? $('#setupForm [name=name]') : $('#loginForm [name=username]')).focus();
+  (setupNeeded ? $('#setupForm [name=name]') : $('#loginForm [name=email]')).focus();
 }
 
 function signedIn(user) {
@@ -74,6 +74,7 @@ function signedIn(user) {
   $('#userRole').textContent = ROLE_NAMES[user.role] || user.role;
   applyRoleVisibility();
   route();
+  refreshNotifCount();
 }
 
 async function boot() {
@@ -121,6 +122,9 @@ $('#logoutBtn').onclick = async () => {
   if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
   dirty = false;
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  // Start the next sign-in on the Estimations list, not on the page this user was last on
+  history.replaceState(null, '', '#/');
+  lastHash = location.hash;
   showAuth(false);
 };
 
@@ -152,8 +156,8 @@ $('#pwForm').addEventListener('submit', async ev => {
 // =====================================================================
 // LIST VIEW
 // =====================================================================
-// Due date quick filter: -1 yesterday, 0 today, 1 tomorrow, null off
-let dueOffset = null;
+// Due date quick filter: any of -1 yesterday, 0 today, 1 tomorrow (none selected = off)
+const dueOffsets = new Set();
 const addDays = (ymd, n) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 // Current list filters as query parameters (used by both the list and the Excel export)
@@ -163,7 +167,7 @@ function listParams() {
   set('q', $('#search').value.trim());
   set('status', $('#statusFilter').value);
   set('value', $('#valueFilter').value);
-  if (dueOffset !== null) set('due', addDays(today(), dueOffset));
+  set('due', [...dueOffsets].sort().map(n => addDays(today(), n)).join(','));
   set('from', $('#fromDate').value);
   set('to', $('#toDate').value);
   return params;
@@ -179,10 +183,11 @@ async function loadList() {
   $('#clearFilters').hidden = !params.toString();
 
   $('#rows').innerHTML = items
-    .map(e => {
+    .map((e, i) => {
       const due = dueInfo(e.dueDate, e.status, e.completed);
       const won = e.status === 'Won';
       return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} — click to open` : 'Click to open'}">
+        <td class="num sl-no">${i + 1}</td>
         <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo)}</strong></a></td>
         <td>${fmtDate(e.date)}</td>
         <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
@@ -203,8 +208,8 @@ async function loadList() {
         <td>${e.lessValue ? `<span class="lv-badge small" title="Less value job — ${LV_TITLE}">LVJ</span>` : '—'}</td>
         <td class="center">
           ${e.completed
-            ? `<button class="btn small icon-btn done-on" data-done="0" data-id="${e._id}" title="Completed — click to mark as not complete" aria-label="Mark as not complete">${TICK_ICON}</button>`
-            : `<button class="btn small icon-btn done-btn" data-done="1" data-id="${e._id}" title="Mark as complete" aria-label="Mark as complete">${TICK_ICON}</button>`}
+            ? `<button class="btn small icon-btn done-on" data-done="0" data-id="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Completed — click to mark as not complete" aria-label="Mark as not complete">${TICK_ICON}</button>`
+            : `<button class="btn small icon-btn done-btn" data-done="1" data-id="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Mark as complete" aria-label="Mark as complete">${TICK_ICON}</button>`}
         </td>
         <td class="actions-cell">
           ${!can('team_leader') ? '' : won
@@ -244,9 +249,9 @@ $('#rows').addEventListener('click', async ev => {
     else location.hash = url;
     return;
   }
-  const d = ev.target.dataset;
+  const d = ev.target.closest('button, a').dataset; // the tick button holds an SVG, so the click target may be inside it
   if (d.done) {
-    if (d.done === '0' && !confirm('Mark this estimation as not complete?')) return;
+    if (!confirm(d.done === '1' ? `Mark ${d.label} as complete?` : `Mark ${d.label} as not complete?`)) return;
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ completed: d.done === '1' }) });
     return loadList();
   }
@@ -1201,24 +1206,89 @@ $('#logPrev').onclick = () => loadLog(logPage - 1);
 $('#logNext').onclick = () => loadLog(logPage + 1);
 
 // =====================================================================
+// NOTIFICATIONS (estimations changed after being marked Completed)
+// =====================================================================
+let notifPage = 1;
+
+// Unread count shown next to "Notifications" in the menu
+async function refreshNotifCount() {
+  if (!can('team_leader')) return;
+  const { unread } = await api('/api/notifications/count').catch(() => ({ unread: 0 }));
+  $('#notifCount').textContent = unread > 99 ? '99+' : unread;
+  $('#notifCount').hidden = !unread;
+}
+setInterval(refreshNotifCount, 60 * 1000);
+
+const notifChange = c => c.from !== undefined
+  ? `<li><strong>${esc(c.label)}:</strong> <span class="old-val">${esc(c.from)}</span> → <span class="new-val">${esc(c.to)}</span></li>`
+  : `<li><strong>${esc(c.label)}</strong></li>`;
+
+async function loadNotifications(page = notifPage) {
+  const params = new URLSearchParams({ page });
+  if ($('#notifUnread').checked) params.set('unread', '1');
+  const r = await api(`/api/notifications?${params}`);
+  notifPage = r.page;
+  $('#notifRows').innerHTML = r.items.map(n => `<tr class="${n.read ? 'notif-read' : 'notif-unread'}">
+      <td>${fmtDateTime(n.createdAt)}</td>
+      <td>${n.action === 'Deleted' ? `<strong>${esc(n.jobNo)}</strong>` : `<a href="#/edit/${n.estimation}"><strong>${esc(n.jobNo)}</strong></a>`}</td>
+      <td class="project-cell" title="${esc(n.projectName)}">${esc(n.projectName)}</td>
+      <td>${esc(n.clientName) || '—'}</td>
+      <td>${esc(n.by) || '<span class="sub">—</span>'}${n.byRole ? `<div class="sub">${esc(ROLE_NAMES[n.byRole] || n.byRole)}</div>` : ''}</td>
+      <td><span class="notif-action ${n.action === 'Edited after completion' ? '' : 'warn'}">${esc(n.action)}</span></td>
+      <td>${n.changes?.length ? `<ul class="notif-changes">${n.changes.map(notifChange).join('')}</ul>` : '—'}</td>
+      <td>${n.completedAt ? fmtDate(n.completedAt) : '—'}</td>
+      <td class="actions-cell"><button class="btn small" data-notif="${n._id}" data-read="${n.read ? 0 : 1}">${n.read ? 'Mark unread' : 'Mark read'}</button></td>
+    </tr>`).join('');
+  $('#notifEmpty').hidden = r.items.length > 0;
+  $('#notifTotal').textContent = `${r.total.toLocaleString()} notification${r.total === 1 ? '' : 's'} · ${r.unread} unread`;
+  $('#notifPage').textContent = `Page ${r.page} of ${r.pages}`;
+  $('#notifPrev').disabled = r.page <= 1;
+  $('#notifNext').disabled = r.page >= r.pages;
+  $('#notifReadAll').disabled = !r.unread;
+  $('#notifCount').textContent = r.unread > 99 ? '99+' : r.unread;
+  $('#notifCount').hidden = !r.unread;
+}
+
+$('#notifRows').addEventListener('click', async ev => {
+  const d = ev.target.dataset;
+  if (!d.notif) return;
+  try {
+    await api(`/api/notifications/${d.notif}`, { method: 'PUT', body: JSON.stringify({ read: d.read === '1' }) });
+    loadNotifications();
+  } catch (err) { if (!err.silent) alert(err.message); }
+});
+$('#notifReadAll').onclick = async () => {
+  if (!confirm('Mark all notifications as read?')) return;
+  try { await api('/api/notifications/read-all', { method: 'PUT' }); loadNotifications(1); } catch (err) { if (!err.silent) alert(err.message); }
+};
+$('#notifUnread').onchange = () => loadNotifications(1);
+$('#notifRefresh').onclick = () => loadNotifications(1);
+$('#notifPrev').onclick = () => loadNotifications(notifPage - 1);
+$('#notifNext').onclick = () => loadNotifications(notifPage + 1);
+
+// =====================================================================
 // ROUTER
 // =====================================================================
 async function route() {
   if (!me) return;
   let hash = location.hash || '#/';
-  if ((hash.startsWith('#/users') || hash.startsWith('#/log')) && !can('admin')) { history.replaceState(null, '', '#/'); hash = '#/'; }
+  if (((hash.startsWith('#/users') || hash.startsWith('#/log')) && !can('admin')) ||
+    (hash.startsWith('#/notifications') && !can('team_leader'))) { history.replaceState(null, '', '#/'); hash = '#/'; }
   const editing = hash.startsWith('#/new') || hash.startsWith('#/edit/');
   const clients = hash.startsWith('#/clients');
   const users = hash.startsWith('#/users');
   const log = hash.startsWith('#/log');
-  $('#listView').hidden = editing || clients || users || log;
+  const notif = hash.startsWith('#/notifications');
+  $('#listView').hidden = editing || clients || users || log || notif;
   $('#editorView').hidden = !editing;
   $('#clientsView').hidden = !clients;
   $('#usersView').hidden = !users;
   $('#logView').hidden = !log;
+  $('#notifView').hidden = !notif;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients && !users && !log);
+  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif);
   $('#navClients').classList.toggle('active', clients);
+  $('#navNotif').classList.toggle('active', notif);
   $('#navUsers').classList.toggle('active', users);
   $('#navLog').classList.toggle('active', log);
   try {
@@ -1227,7 +1297,8 @@ async function route() {
     else if (clients) await loadClients();
     else if (users) await loadUsers();
     else if (log) await loadLog(1);
-    else await loadList();
+    else if (notif) await loadNotifications(1);
+    else { await loadList(); refreshNotifCount(); }
   } catch (err) {
     if (err.silent) return;
     alert(err.message);
@@ -1273,20 +1344,25 @@ $('#fromDate').onchange = loadList;
 $('#toDate').onchange = loadList;
 $('#clearFilters').onclick = () => {
   ['#search', '#statusFilter', '#valueFilter', '#fromDate', '#toDate'].forEach(sel => { $(sel).value = ''; });
-  setDueOffset(null);
+  dueOffsets.clear();
+  renderDueButtons();
+  loadList();
 };
-function setDueOffset(n) {
-  dueOffset = n;
+function renderDueButtons() {
   document.querySelectorAll('.due-quick button').forEach(b => {
-    const on = n !== null && +b.dataset.dueOffset === n;
+    const on = dueOffsets.has(+b.dataset.dueOffset);
     b.classList.toggle('active', on);
     b.setAttribute('aria-pressed', on);
   });
-  loadList();
 }
-// Click a day to filter by it; click it again to show all
+// Click days to add them to the filter (several at once); click a selected day again to remove it
 document.querySelectorAll('.due-quick button').forEach(b => {
-  b.onclick = () => setDueOffset(+b.dataset.dueOffset === dueOffset ? null : +b.dataset.dueOffset);
+  b.onclick = () => {
+    const n = +b.dataset.dueOffset;
+    if (dueOffsets.has(n)) dueOffsets.delete(n); else dueOffsets.add(n);
+    renderDueButtons();
+    loadList();
+  };
 });
 $('#exportBtn').onclick = () => { location.href = `${API}/export?${listParams()}`; };
 let searchTimer;
@@ -1305,7 +1381,7 @@ async function loadUsers() {
     const self = u._id === me._id;
     return `<tr class="${u.active ? '' : 'row-inactive'}">
       <td><strong>${esc(u.name)}</strong>${self ? ' <span class="sub">(you)</span>' : ''}</td>
-      <td>${esc(u.username)}</td>
+      <td><input type="email" class="cell-edit" data-user-email="${u._id}" value="${esc(u.email)}" data-orig="${esc(u.email)}" title="Sign-in email — edit and press Enter to change" /></td>
       <td><select class="cell-edit" data-user-role="${u._id}">
         ${ROLE_ORDER.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_NAMES[r]}</option>`).join('')}</select></td>
       <td>${u.active ? '<span class="badge Won">Active</span>' : '<span class="badge On-Hold">Disabled</span>'}</td>
@@ -1329,8 +1405,17 @@ $('#addUserForm').addEventListener('submit', async ev => {
 });
 
 $('#userRows').addEventListener('change', async ev => {
+  const emailId = ev.target.dataset.userEmail;
+  if (emailId) {
+    const email = ev.target.value.trim().toLowerCase();
+    if (!email || email === ev.target.dataset.orig) { ev.target.value = ev.target.dataset.orig; return; }
+    try {
+      await api(`/api/users/${emailId}`, { method: 'PUT', body: JSON.stringify({ email }) });
+      $('#userMsg').textContent = `Email changed to ${email}`;
+    } catch (err) { if (!err.silent) alert(err.message); }
+    return loadUsers();
+  }
   const id = ev.target.dataset.userRole;
-  if (!id) return;
   try {
     await api(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify({ role: ev.target.value }) });
     $('#userMsg').textContent = 'Role updated';

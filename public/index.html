@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Estimation Manager</title>
+  <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+  <link rel="icon" type="image/png" href="favicon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="site.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="signed-out">
@@ -14,7 +18,7 @@
 
       <form id="loginForm" autocomplete="on">
         <h2>Sign in</h2>
-        <label>Username<input name="username" autocomplete="username" required autofocus /></label>
+        <label>Email<input name="email" type="email" autocomplete="username" required autofocus /></label>
         <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
         <p class="error" id="loginError" hidden></p>
         <button type="submit" class="btn primary block">Sign in</button>
@@ -25,7 +29,7 @@
         <h2>Create the Admin account</h2>
         <p class="hint">No users exist yet. This first account will be the <strong>Admin</strong>, who can add the other users.</p>
         <label>Your name<input name="name" required /></label>
-        <label>Username<input name="username" required pattern="[A-Za-z0-9._\-]{3,30}" title="3-30 letters, numbers, . _ -" autocomplete="username" /></label>
+        <label>Email<input name="email" type="email" required autocomplete="username" /></label>
         <label>Password<input name="password" type="password" required minlength="8" autocomplete="new-password" /></label>
         <label>Confirm password<input name="confirm" type="password" required minlength="8" autocomplete="new-password" /></label>
         <p class="error" id="setupError" hidden></p>
@@ -39,6 +43,7 @@
     <nav class="nav">
       <a href="#/" id="navEst">Estimations</a>
       <a href="#/clients" id="navClients">Clients</a>
+      <a href="#/notifications" id="navNotif" data-min-role="team_leader">Notifications <span class="notif-count" id="notifCount" hidden></span></a>
       <a href="#/users" id="navUsers" data-min-role="admin">Users</a>
       <a href="#/log" id="navLog" data-min-role="admin">Log</a>
     </nav>
@@ -83,6 +88,7 @@
       <table class="list">
         <thead>
           <tr>
+            <th class="num sl-no">Sl No.</th>
             <th>No.</th>
             <th>Date</th>
             <th>Project</th>
@@ -337,6 +343,32 @@
     </section>
   </main>
 
+  <!-- ===================== NOTIFICATIONS ===================== -->
+  <main id="notifView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Notifications</h3>
+        <span class="hint">Estimations changed after they were marked Completed — what changed, who changed it and when.
+          You see changes made by the roles below yours (Admins see all).</span>
+        <span class="spacer"></span>
+        <label class="check"><input type="checkbox" id="notifUnread" /> Unread only</label>
+        <button type="button" class="btn small" id="notifReadAll">✓ Mark all read</button>
+        <button type="button" class="btn small" id="notifRefresh" title="Load the latest notifications">↻ Refresh</button></div>
+      <div class="table-wrap">
+        <table class="list notif-list">
+          <thead><tr><th>Date &amp; time</th><th>No.</th><th>Project</th><th>Client</th><th>Changed by</th><th>Action</th><th>What changed</th><th>Completed on</th><th></th></tr></thead>
+          <tbody id="notifRows"></tbody>
+        </table>
+        <p id="notifEmpty" class="empty" hidden>No notifications.</p>
+      </div>
+      <div class="log-pager">
+        <span id="notifTotal" class="sub"></span><span class="spacer"></span>
+        <button type="button" class="btn small" id="notifPrev">‹ Newer</button>
+        <span id="notifPage" class="sub"></span>
+        <button type="button" class="btn small" id="notifNext">Older ›</button>
+      </div>
+    </section>
+  </main>
+
   <!-- ===================== USERS (Admin) ===================== -->
   <main id="usersView" hidden>
     <section class="card">
@@ -344,7 +376,7 @@
         <span class="hint">Member: estimations &amp; downloads · Team Leader: + Won/Lost, delete, export · Manager: + client list · Admin: + users</span></div>
       <form class="add-user" id="addUserForm" autocomplete="off">
         <input name="name" placeholder="Full name" required />
-        <input name="username" placeholder="Username" required pattern="[A-Za-z0-9._\-]{3,30}" title="3-30 letters, numbers, . _ -" autocomplete="off" />
+        <input name="email" type="email" placeholder="Email" required autocomplete="off" />
         <select name="role" id="newUserRole"></select>
         <input name="password" type="password" placeholder="Password (min 8)" required minlength="8" autocomplete="new-password" />
         <button type="submit" class="btn primary">+ Add user</button>
@@ -352,7 +384,7 @@
       </form>
       <div class="table-wrap">
         <table class="list">
-          <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
           <tbody id="userRows"></tbody>
         </table>
       </div>
@@ -365,7 +397,7 @@
       <div class="card-head"><h3>Activity log</h3>
         <span class="hint">Every change made in the app (saves, deletes, sign-ins…) with who did it and from which IP. Page views are not logged.</span></div>
       <div class="toolbar log-toolbar">
-        <input id="logSearch" type="search" placeholder="Search action, project, user, IP…" />
+        <input id="logSearch" type="search" placeholder="Search action, project, user, email, IP…" />
         <select id="logUser"><option value="">All users</option></select>
         <select id="logResult">
           <option value="">All results</option>

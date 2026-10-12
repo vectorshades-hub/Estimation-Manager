@@ -6,7 +6,7 @@ const router = express.Router();
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const PAGE_SIZE = 100;
 
-// Query: q (search), user (username), result ('ok' | 'failed'), from / to (yyyy-mm-dd), page (1-based)
+// Query: q (search), user (sign-in email), result ('ok' | 'failed'), from / to (yyyy-mm-dd), page (1-based)
 router.get('/', async (req, res, next) => {
   try {
     const { q, user, result, from, to } = req.query;

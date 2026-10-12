@@ -6,7 +6,7 @@ const LOG_DAYS = Number(process.env.LOG_DAYS) || 365;
 const logSchema = new mongoose.Schema({
   at: { type: Date, default: Date.now, index: { expires: LOG_DAYS * 24 * 3600 } },
   user: { type: String, trim: true },      // display name
-  username: { type: String, trim: true },
+  username: { type: String, trim: true },  // sign-in email (older entries: the former username)
   role: { type: String },
   ip: { type: String },
   method: { type: String },

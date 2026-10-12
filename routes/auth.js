@@ -20,9 +20,9 @@ router.post('/setup', async (req, res, next) => {
   try {
     if (process.env.AUTH_ENABLED !== 'true') return res.status(403).json({ error: 'Sign-in is switched off' });
     if (await User.countDocuments()) return res.status(403).json({ error: 'Setup has already been completed' });
-    const { username, name, password } = req.body;
+    const { email, name, password } = req.body;
     auth.checkPasswordRules(password);
-    const user = await User.create({ username, name, role: 'admin', passwordHash: auth.hashPassword(password) });
+    const user = await User.create({ email, name, role: 'admin', passwordHash: auth.hashPassword(password) });
     req.user = user; // for the activity log
     await auth.startSession(res, user);
     res.status(201).json(user.toSafeJSON());
@@ -33,16 +33,16 @@ router.post('/setup', async (req, res, next) => {
 
 router.post('/login', async (req, res, next) => {
   try {
-    const username = String(req.body.username || '').trim().toLowerCase();
-    const key = `${username}|${req.ip}`;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const key = `${email}|${req.ip}`;
     const wait = auth.loginBlocked(key);
     if (wait) return res.status(429).json({ error: `Too many failed attempts. Try again in ${wait} minute(s).` });
 
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ email });
     if (user) req.user = user; // for the activity log (also on failed attempts)
     if (!user || !auth.verifyPassword(req.body.password || '', user.passwordHash)) {
       auth.loginFailed(key);
-      return res.status(401).json({ error: 'Wrong username or password' });
+      return res.status(401).json({ error: 'Wrong email or password' });
     }
     if (!user.active) return res.status(403).json({ error: 'This account has been disabled. Contact your admin.' });
     auth.loginSucceeded(key);
