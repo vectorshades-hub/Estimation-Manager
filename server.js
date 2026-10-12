@@ -9,7 +9,7 @@ const userRoutes = require('./routes/users');
 const logRoutes = require('./routes/logs');
 const notificationRoutes = require('./routes/notifications');
 const requestLog = require('./lib/requestLog');
-const { authenticate, requireRole } = require('./lib/auth');
+const { authenticate, requireRole, authEnabled } = require('./lib/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,7 +21,7 @@ app.set('trust proxy', 'loopback');
 app.use('/api', requestLog);                   // activity log: every request except GET (user, IP, action, result)
 app.use('/api/auth', authRoutes);             // login / logout / first-time setup (no sign-in needed)
 // Sign-in can be switched off with AUTH_ENABLED=false in .env: everyone then works with full (admin) rights
-const AUTH_ENABLED = process.env.AUTH_ENABLED === 'true';
+const AUTH_ENABLED = authEnabled();
 const openAccess = (req, res, next) => { req.user = { name: '', role: 'admin' }; next(); };
 app.use('/api', AUTH_ENABLED ? authenticate : openAccess); // everything else requires a signed-in user (when enabled)
 app.use('/api/estimations', estimationRoutes);

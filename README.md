@@ -29,7 +29,8 @@ Each estimation can be downloaded as an Excel "ESTIMATION CHART" with the same l
 - Additional hours note, Arch / Span / Weight boxes, struct and misc description lists, and exclusions.
 
 ## Users and sign-in
-**Switched on** (`AUTH_ENABLED=true` in `.env`). Set `AUTH_ENABLED=false` and restart to turn sign-in off (no login, everyone has full access).
+**On by default.** Only `AUTH_ENABLED=false` in `.env` (then restart) turns sign-in off (no login, everyone has full access).
+Note that `.env` is not in git: each server keeps its own copy, so check it there after deploying.
 
 The first time the app is opened (no users yet) it asks you to create the **Admin** account. After that everyone signs in
 with their **email** and password. Admin adds users on the **Users** page (top menu) and can change emails and roles,

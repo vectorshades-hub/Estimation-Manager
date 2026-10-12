@@ -8,7 +8,7 @@ const router = express.Router();
 // Is first-time setup needed (no users yet)?
 router.get('/status', async (req, res, next) => {
   try {
-    const authEnabled = process.env.AUTH_ENABLED === 'true';
+    const authEnabled = auth.authEnabled();
     res.json({ authEnabled, setupNeeded: authEnabled && (await User.countDocuments()) === 0, roles: ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] })) });
   } catch (err) {
     next(err);
@@ -18,7 +18,7 @@ router.get('/status', async (req, res, next) => {
 // First-time setup: create the first Admin (only allowed while there are no users)
 router.post('/setup', async (req, res, next) => {
   try {
-    if (process.env.AUTH_ENABLED !== 'true') return res.status(403).json({ error: 'Sign-in is switched off' });
+    if (!auth.authEnabled()) return res.status(403).json({ error: 'Sign-in is switched off' });
     if (await User.countDocuments()) return res.status(403).json({ error: 'Setup has already been completed' });
     const { email, name, password } = req.body;
     auth.checkPasswordRules(password);
