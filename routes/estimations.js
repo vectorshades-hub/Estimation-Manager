@@ -23,14 +23,21 @@ const notify = require('../lib/notify');
 const router = express.Router();
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIST_FIELDS = 'completed completedAt createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt connectionDesign';
+const LIST_FIELDS = 'completed completedAt completedBy createdBy updatedBy updatedAt jobNo projectName clientName date doneBy dueDate status links sheetCount pageCount totalCount totalHours totalDwgs approxTonnage createdAt connectionDesign';
+
+// Completed estimations stay in the main list for this many days, then are only on the Completed page
+const COMPLETED_LIST_DAYS = 3;
+const recentOrOpen = () => ({ $or: [
+  { completed: { $ne: true } },
+  { completedAt: { $gte: new Date(Date.now() - COMPLETED_LIST_DAYS * 24 * 3600 * 1000) } },
+] });
 
 // Shared by the list and the Excel export.
 // Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd),
 // due (due date(s), yyyy-mm-dd, comma-separated for several days)
 async function findFiltered(query, fields) {
   const { q, status, value, from, to, due } = query;
-  const filter = {};
+  const filter = { $and: [recentOrOpen()] };
   if (status) filter.status = status;
   if (q) {
     const rx = new RegExp(escapeRegex(q), 'i');
@@ -44,14 +51,25 @@ async function findFiltered(query, fields) {
   }
   const dueDays = String(due || '').split(',').filter(isDate);
   if (dueDays.length) {
-    filter.$and = [{ $or: dueDays.map(d => ({ dueDate: { $gte: new Date(`${d}T00:00:00.000Z`), $lte: new Date(`${d}T23:59:59.999Z`) } })) }];
+    filter.$and.push({ $or: dueDays.map(d => ({ dueDate: { $gte: new Date(`${d}T00:00:00.000Z`), $lte: new Date(`${d}T23:59:59.999Z`) } })) });
   }
   let items = await withFlags(await Estimation.find(filter).select(fields).sort('-createdAt'));
   if (value === 'less') items = items.filter(e => e.lessValue);
   if (value === 'priority') items = items.filter(e => e.priorityClient);
   if (value === 'completed') items = items.filter(e => e.completed);
   if (value === 'open') items = items.filter(e => !e.completed);
-  return items;
+  return items.sort(listOrder);
+}
+
+// List order: open estimations first, completed ones at the bottom. Within each group: by due day (earliest first,
+// no due date last); on the same day priority clients first, then In Progress, then by No.
+const dueDay = e => (e.dueDate ? new Date(e.dueDate).toISOString().slice(0, 10) : '9999-99-99');
+function listOrder(a, b) {
+  return (!!a.completed - !!b.completed)
+    || dueDay(a).localeCompare(dueDay(b))
+    || (!!b.priorityClient - !!a.priorityClient)
+    || ((b.status === 'In Progress') - (a.status === 'In Progress'))
+    || String(a.jobNo || '').localeCompare(String(b.jobNo || ''), undefined, { numeric: true });
 }
 
 function describeFilters({ q, status, value, from, to, due }) {
@@ -61,7 +79,7 @@ function describeFilters({ q, status, value, from, to, due }) {
     value === 'less' && 'Less value jobs only',
     value === 'priority' && 'Priority clients only',
     value === 'open' && 'Not completed only',
-    value === 'completed' && 'Completed only',
+    value === 'completed' && `Completed only (last ${COMPLETED_LIST_DAYS} days)`,
     due && `Due: ${String(due).split(',').join(', ')}`,
     from && `Date from: ${from}`,
     to && `Date to: ${to}`,
@@ -72,6 +90,37 @@ function describeFilters({ q, status, value, from, to, due }) {
 router.get('/', async (req, res, next) => {
   try {
     res.json(await findFiltered(req.query, LIST_FIELDS));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Completed log: every completed estimation, most recently completed first (all users).
+// Query: q (search), from / to (completed date, yyyy-mm-dd, viewer's local days), tz (getTimezoneOffset), page (1-based)
+const COMPLETED_PAGE_SIZE = 100;
+router.get('/completed', async (req, res, next) => {
+  try {
+    const { q, from, to } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const filter = { completed: true };
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [{ jobNo: rx }, { projectName: rx }, { clientName: rx }, { doneBy: rx }, { completedBy: rx }];
+    }
+    const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    if (isDate(from) || isDate(to)) {
+      const tz = Number(req.query.tz) || 0;
+      filter.completedAt = {};
+      if (isDate(from)) filter.completedAt.$gte = new Date(new Date(`${from}T00:00:00.000Z`).getTime() + tz * 60000);
+      if (isDate(to)) filter.completedAt.$lte = new Date(new Date(`${to}T23:59:59.999Z`).getTime() + tz * 60000);
+    }
+    const [docs, total] = await Promise.all([
+      Estimation.find(filter).select(LIST_FIELDS).sort({ completedAt: -1, _id: -1 })
+        .skip((page - 1) * COMPLETED_PAGE_SIZE).limit(COMPLETED_PAGE_SIZE),
+      Estimation.countDocuments(filter),
+    ]);
+    res.json({ items: await withFlags(docs), total, page, pages: Math.max(1, Math.ceil(total / COMPLETED_PAGE_SIZE)),
+      listDays: COMPLETED_LIST_DAYS });
   } catch (err) {
     next(err);
   }
@@ -197,7 +246,7 @@ router.get('/:id/proposal', async (req, res, next) => {
 });
 
 const clean = ({ _id, createdAt, updatedAt, totalCount, totalHours, totalDwgs, approxTonnage, sheetCount, pageCount,
-  wonAt, completedAt, createdBy, updatedBy, __v, ...data }) => data;
+  wonAt, completedAt, completedBy, createdBy, updatedBy, __v, ...data }) => data;
 
 // Only Team Leaders and above may set or clear Won / Lost
 const DECIDED = ['Won', 'Lost'];
@@ -211,7 +260,8 @@ function checkStatusChange(req, from, to) {
 router.post('/', async (req, res, next) => {
   try {
     checkStatusChange(req, 'Received', req.body.status);
-    const doc = await Estimation.create({ ...clean(req.body), createdBy: req.user.name || undefined, updatedBy: req.user.name || undefined });
+    const doc = await Estimation.create({ ...clean(req.body), createdBy: req.user.name || undefined, updatedBy: req.user.name || undefined,
+      ...(req.body.completed ? { completedBy: req.user.name || undefined } : {}) });
     await Client.ensure(doc.clientName);
     res.status(201).json(doc);
   } catch (err) {
@@ -225,7 +275,9 @@ router.put('/:id', async (req, res, next) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
     checkStatusChange(req, doc.status, req.body.status);
     const before = notify.snapshot(doc);
+    const wasCompleted = doc.completed;
     doc.set({ ...clean(req.body), ...(req.user.name ? { updatedBy: req.user.name } : {}) });
+    if (doc.completed && !wasCompleted) doc.completedBy = req.user.name || undefined;
     await doc.save(); // save() so derived totals are recomputed
     await Client.ensure(doc.clientName);
     await notify.recordIfCompleted(before, doc, req.user);
@@ -235,24 +287,30 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-// Descriptions "Auto fetch" switch: saved straight away (with that page's description lines) so it survives a refresh
+// Descriptions "Auto fetch" / "Split sheets" switches: saved straight away (with that page's description lines)
+// so they survive a refresh
 router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
   try {
     const i = Number(req.params.page);
-    const doc = await Estimation.findById(req.params.id, 'pages.name completed completedAt jobNo projectName clientName');
+    const doc = await Estimation.findById(req.params.id, 'pages.name pages.autoDesc pages.splitSheets completed completedAt jobNo projectName clientName');
     if (!doc) return res.status(404).json({ error: 'Not found' });
-    const { autoDesc, structDescriptions, miscDescriptions, pageName } = req.body;
+    const { autoDesc, splitSheets, structDescriptions, miscDescriptions, pageName } = req.body;
     // Pages added / removed / renamed but not saved yet: the index may point at another page
     if (!Number.isInteger(i) || i < 0 || i >= doc.pages.length || (pageName !== undefined && doc.pages[i].name !== pageName)) {
       return res.status(409).json({ error: 'Page not saved yet' });
     }
     const set = { [`pages.${i}.autoDesc`]: !!autoDesc };
+    if (splitSheets !== undefined) set[`pages.${i}.splitSheets`] = !!splitSheets;
     if (Array.isArray(structDescriptions)) set[`pages.${i}.structDescriptions`] = structDescriptions;
     if (Array.isArray(miscDescriptions)) set[`pages.${i}.miscDescriptions`] = miscDescriptions;
     await Estimation.updateOne({ _id: doc._id }, { $set: set }, { runValidators: true });
     if (doc.completed) {
-      await notify.record(doc, req.user, 'Edited after completion',
-        [{ field: 'pages', label: `Descriptions auto fetch (${doc.pages[i].name}) set to ${autoDesc ? 'Yes' : 'No'}` }]);
+      const yn = v => (v ? 'Yes' : 'No');
+      const page = doc.pages[i];
+      const changes = [];
+      if (!!autoDesc !== (page.autoDesc !== false)) changes.push({ field: 'pages', label: `Descriptions auto fetch (${page.name})`, from: yn(page.autoDesc !== false), to: yn(autoDesc) });
+      if (splitSheets !== undefined && !!splitSheets !== !!page.splitSheets) changes.push({ field: 'pages', label: `Descriptions split sheets (${page.name})`, from: yn(page.splitSheets), to: yn(splitSheets) });
+      if (changes.length) await notify.record(doc, req.user, 'Edited after completion', changes);
     }
     res.json({ ok: true });
   } catch (err) {

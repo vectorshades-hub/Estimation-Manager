@@ -49,6 +49,7 @@ const pageSchema = new mongoose.Schema(
     structDescriptions: [descSchema],
     miscDescriptions: [descSchema],
     autoDesc: { type: Boolean, default: true }, // fill the description lines from the chart quantities
+    splitSheets: { type: Boolean, default: false }, // auto fetch: one line per sheet instead of one per item
   },
   { _id: false }
 );
@@ -56,7 +57,9 @@ const pageSchema = new mongoose.Schema(
 const estimationSchema = new mongoose.Schema(
   {
     // Header
-    jobNo: { type: String, required: [true, 'No. is required'], trim: true, unique: true },
+    // Optional. A No. that is entered must be unique; any number of estimations may have none
+    // (the unique index only covers documents that have a No., see below)
+    jobNo: { type: String, trim: true },
     projectName: { type: String, required: [true, 'Project name is required'], trim: true },
     date: { type: Date, default: Date.now },
     doneBy: { type: String, trim: true },
@@ -69,7 +72,8 @@ const estimationSchema = new mongoose.Schema(
     status: { type: String, enum: STATUSES, default: 'Received' },
     wonAt: { type: Date }, // set when status becomes Won (used for awarded-per-year counts)
     completed: { type: Boolean, default: false }, // estimation work finished ("Mark Complete")
-    completedAt: { type: Date },
+    completedAt: { type: Date, index: true },
+    completedBy: { type: String, trim: true }, // user name, set by the server when it is marked complete
     notes: { type: String, trim: true },
     createdBy: { type: String, trim: true },  // user names, set by the server
     updatedBy: { type: String, trim: true },
@@ -111,11 +115,15 @@ const estimationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+estimationSchema.index({ jobNo: 1 }, { unique: true, partialFilterExpression: { jobNo: { $type: 'string' } } });
+
 estimationSchema.pre('validate', function () {
+  if (!this.jobNo) this.jobNo = undefined; // blank No. is stored as "no No." so it never clashes with another blank one
   if (this.status === 'Won' && !this.wonAt) this.wonAt = new Date();
   if (this.status !== 'Won' && this.wonAt) this.wonAt = undefined;
   if (this.completed && !this.completedAt) this.completedAt = new Date();
   if (!this.completed && this.completedAt) this.completedAt = undefined;
+  if (!this.completed && this.completedBy) this.completedBy = undefined;
   this.links = (this.links || []).filter(l => l.url || l.label);
   if (!this.pages || !this.pages.length) this.pages = [{ name: 'Page 1', sheets: [] }];
   const isBlank = d => !String(d.qty ?? '').trim() && !String(d.description ?? '').trim() && !String(d.notes ?? '').trim();

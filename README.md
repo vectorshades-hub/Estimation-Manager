@@ -55,6 +55,12 @@ If the Admin password is lost, delete the user from the `users` collection in Mo
 - An estimation is marked **Less value job** when the client is **not** a priority client **and** total hours are **below 175**
   (`LESS_VALUE_HOURS` in `public/calc.js`). The flag is evaluated live, so changing a client's priority updates it immediately.
 
+## Completed estimations
+The main list shows open estimations first (by due date; same day: priority clients, then In Progress), and keeps
+completed ones at the bottom for **3 days** after they are marked complete (`COMPLETED_LIST_DAYS` in `routes/estimations.js`).
+The **Completed** page (top menu, all users) lists every completed estimation with when and by whom it was completed and
+whether it was on time, searchable and filterable by completed date.
+
 ## Notifications
 The **Notifications** page (top menu, with an unread count) lists estimations that were changed after being marked
 **Completed**: edits (with the old → new value of each simple field), Won / connection design changes, marking it not complete,

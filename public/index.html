@@ -42,6 +42,7 @@
     <h1><a href="#/">Estimation Manager</a></h1>
     <nav class="nav">
       <a href="#/" id="navEst">Estimations</a>
+      <a href="#/completed" id="navCompleted">Completed</a>
       <a href="#/clients" id="navClients">Clients</a>
       <a href="#/notifications" id="navNotif" data-min-role="team_leader">Notifications <span class="notif-count" id="notifCount" hidden></span></a>
       <a href="#/users" id="navUsers" data-min-role="admin">Users</a>
@@ -70,7 +71,7 @@
         <option value="less">Less value jobs</option>
         <option value="priority">Priority clients</option>
         <option value="open">Not completed</option>
-        <option value="completed">Completed</option>
+        <option value="completed">Completed (last 3 days)</option>
       </select>
       <div class="due-quick" role="group" aria-label="Due date">
         <span class="due-quick-label">Due</span>
@@ -101,7 +102,6 @@
             <th class="center">Conn. Design</th>
             <th>Status</th>
             <th>Job Value</th>
-            <th class="center">Completed</th>
             <th></th>
           </tr>
         </thead>
@@ -109,6 +109,8 @@
       </table>
       <p id="empty" class="empty" hidden>No estimations yet. Click “New Estimation” to add one.</p>
     </div>
+    <p class="hint list-note">Completed estimations stay in this list for <span id="completedDays">3</span> days.
+      All completed estimations are on the <a href="#/completed">Completed</a> page.</p>
   </main>
 
   <!-- ===================== EDITOR VIEW ===================== -->
@@ -133,7 +135,7 @@
       <section class="card accent-blue details-card">
         <h3>Details</h3>
         <div class="fields">
-          <label>No. *<input name="jobNo" required /></label>
+          <label>No.<input name="jobNo" /></label>
           <label>Date<input name="date" type="date" /></label>
           <label class="wide">Project name *<input name="projectName" required /></label>
           <label class="wide">Client name * <span id="clientBadge" class="client-badge"></span>
@@ -236,6 +238,12 @@
         <div class="desc-col">
           <section class="card desc-card">
             <div class="card-head"><h3>Descriptions <span class="page-chip page-name"></span></h3><span class="spacer"></span>
+              <label class="switch" id="splitSheetsSwitch" title="Show a separate description line for each sheet">
+                <span class="switch-text">Split sheets</span>
+                <input type="checkbox" id="splitSheetsToggle" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="switch-state" id="splitSheetsState">No</span>
+              </label>
               <label class="switch" title="Fill the description lines from the estimation chart quantities">
                 <span class="switch-text">Auto fetch</span>
                 <input type="checkbox" id="autoDescToggle" />
@@ -339,6 +347,35 @@
           <tfoot id="clientFoot"></tfoot>
         </table>
         <p id="clientEmpty" class="empty" hidden>No clients yet. Import an Excel file or add one above.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== COMPLETED LOG ===================== -->
+  <main id="completedView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Completed</h3>
+        <span class="hint">Every completed estimation, most recently completed first. Click a row to open it.</span></div>
+      <div class="toolbar">
+        <input id="compSearch" type="search" placeholder="Search No., project, client, done by, completed by…" />
+        <label class="date-filter">Completed from<input type="date" id="compFrom" /></label>
+        <label class="date-filter">To<input type="date" id="compTo" /></label>
+        <button type="button" class="btn" id="compClear" hidden>Clear</button>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th class="num sl-no">Sl No.</th><th>No.</th><th>Project</th><th>Client</th><th>Done By</th>
+            <th class="num">Total Hrs</th><th class="num">Tonnage</th><th>Due Date</th><th>Completed On</th><th>Completed By</th>
+            <th>On Time</th><th>Status</th></tr></thead>
+          <tbody id="compRows"></tbody>
+        </table>
+        <p id="compEmpty" class="empty" hidden>No completed estimations.</p>
+      </div>
+      <div class="log-pager">
+        <span id="compTotal" class="sub"></span><span class="spacer"></span>
+        <button type="button" class="btn small" id="compPrev">‹ Newer</button>
+        <span id="compPage" class="sub"></span>
+        <button type="button" class="btn small" id="compNext">Older ›</button>
       </div>
     </section>
   </main>

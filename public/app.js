@@ -29,6 +29,8 @@ function dueInfo(dueDate, status, completed = false) {
   if (days === 0) return { days, text: 'Due today', cls: closed ? 'due-closed' : 'due-soon' };
   return { days, text: `${days} day${days === 1 ? '' : 's'} left`, cls: closed ? 'due-closed' : days <= 3 ? 'due-soon' : 'due-ok' };
 }
+// "26-008 Project name", or just the project name when there is no No.
+const estLabel = e => [e.jobNo, e.projectName].filter(Boolean).join(' ');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function api(url, opts = {}) {
@@ -174,7 +176,36 @@ function listParams() {
 }
 
 const TRASH_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
-const TICK_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+// Status as a drop-down styled like the status badge: change it right from the list.
+// The last option, "Completed", marks the estimation complete; on a completed one, picking a status un-completes it.
+// Won / Lost can only be set or cleared by Team Leaders and above (the server checks this too).
+const DECIDED = ['Won', 'Lost'];
+const COMPLETED_OPT = 'Completed';
+function statusSelect(e) {
+  const lead = can('team_leader');
+  const shown = e.completed ? COMPLETED_OPT : e.status;
+  // Members can't move an estimation into or out of Won / Lost
+  const blocked = s => !lead && s !== e.status && (DECIDED.includes(s) || DECIDED.includes(e.status));
+  return `<select class="badge status-select ${statusClass(shown)}" data-status-id="${e._id}" data-orig="${esc(shown)}"
+      data-label="${esc(estLabel(e))}"
+      title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} (status: ${esc(e.status)}) — pick a status to mark it not complete` : 'Change status'}">
+      ${STATUSES.map(s => `<option value="${esc(s)}" ${s === shown ? 'selected' : ''} ${blocked(s) ? 'disabled' : ''}>${esc(s)}</option>`).join('')}
+      <option value="${COMPLETED_OPT}" ${e.completed ? 'selected' : ''}>✓ Completed</option>
+    </select>`;
+}
+
+// A <select> is as wide as its longest option: size each status drop-down to the status it shows instead
+const measureCtx = document.createElement('canvas').getContext('2d');
+function fitStatusSelects(root) {
+  root.querySelectorAll('select.status-select').forEach(sel => {
+    const cs = getComputedStyle(sel);
+    measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const text = measureCtx.measureText(sel.options[sel.selectedIndex]?.text || '').width;
+    const extra = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    sel.style.width = `${Math.ceil(text + extra + 2)}px`;
+  });
+}
 
 async function loadList() {
   const params = listParams();
@@ -188,7 +219,7 @@ async function loadList() {
       const won = e.status === 'Won';
       return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} — click to open` : 'Click to open'}">
         <td class="num sl-no">${i + 1}</td>
-        <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo)}</strong></a></td>
+        <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
         <td>${fmtDate(e.date)}</td>
         <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
         <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
@@ -200,27 +231,21 @@ async function loadList() {
         <td class="center">${(() => {
           const yes = e.connectionDesign === 'Yes';
           return `<button type="button" class="cd-badge${yes ? ' yes' : ''}" data-cd="${yes ? 'No' : 'Yes'}" data-id="${e._id}"
-            data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Click to change to ${yes ? 'No' : 'Yes'}">${yes ? 'Yes' : 'No'}</button>`;
+            data-label="${esc(estLabel(e))}" title="Click to change to ${yes ? 'No' : 'Yes'}">${yes ? 'Yes' : 'No'}</button>`;
         })()}</td>
-        <td>${e.completed
-          ? `<span class="done-badge" title="Completed ${e.completedAt ? fmtDate(e.completedAt) : ''}">✓ Completed</span>`
-          : `<span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>`}</td>
+        <td>${statusSelect(e)}</td>
         <td>${e.lessValue ? `<span class="lv-badge small" title="Less value job — ${LV_TITLE}">LVJ</span>` : '—'}</td>
-        <td class="center">
-          ${e.completed
-            ? `<button class="btn small icon-btn done-on" data-done="0" data-id="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Completed — click to mark as not complete" aria-label="Mark as not complete">${TICK_ICON}</button>`
-            : `<button class="btn small icon-btn done-btn" data-done="1" data-id="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Mark as complete" aria-label="Mark as complete">${TICK_ICON}</button>`}
-        </td>
         <td class="actions-cell">
           ${!can('team_leader') ? '' : won
             ? `<button class="btn small won-on" data-won="0" data-id="${e._id}" title="Click to undo (sets status back to Submitted)">✓ Won</button>`
             : `<button class="btn small won-btn" data-won="1" data-id="${e._id}">Mark Won</button>`}
           ${e.links?.find(l => l.url) ? `<a class="btn small" href="${esc(e.links.find(l => l.url).url)}" target="_blank" rel="noopener" title="Open SharePoint folder">Folder</a>` : ''}
-          ${can('team_leader') ? `<button class="btn small danger icon-btn" data-del="${e._id}" data-label="${esc(e.jobNo + ' ' + e.projectName)}" title="Delete" aria-label="Delete">${TRASH_ICON}</button>` : ''}
+          ${can('team_leader') ? `<button class="btn small danger icon-btn" data-del="${e._id}" data-label="${esc(estLabel(e))}" title="Delete" aria-label="Delete">${TRASH_ICON}</button>` : ''}
         </td>
       </tr>`;
     })
     .join('');
+  fitStatusSelects($('#rows'));
   $('#empty').hidden = items.length > 0;
 
   const won = s.byStatus.Won || { count: 0, tonnage: 0 };
@@ -240,6 +265,7 @@ async function loadList() {
 }
 
 $('#rows').addEventListener('click', async ev => {
+  if (ev.target.closest('select')) return; // status drop-down: handled on change
   // Clicking anywhere on a row (except its buttons/links) opens the project
   if (!ev.target.closest('a, button')) {
     const row = ev.target.closest('tr[data-open-id]');
@@ -249,12 +275,7 @@ $('#rows').addEventListener('click', async ev => {
     else location.hash = url;
     return;
   }
-  const d = ev.target.closest('button, a').dataset; // the tick button holds an SVG, so the click target may be inside it
-  if (d.done) {
-    if (!confirm(d.done === '1' ? `Mark ${d.label} as complete?` : `Mark ${d.label} as not complete?`)) return;
-    await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ completed: d.done === '1' }) });
-    return loadList();
-  }
+  const d = ev.target.closest('button, a').dataset; // icon buttons hold an SVG, so the click target may be inside it
   if (d.cd) {
     if (!confirm(`Change Connection design to "${d.cd}" for ${d.label}?`)) return;
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ connectionDesign: d.cd }) });
@@ -267,6 +288,28 @@ $('#rows').addEventListener('click', async ev => {
   }
   if (!d.del || !confirm(`Delete ${d.label}?`)) return;
   await api(`${API}/${d.del}`, { method: 'DELETE' });
+  loadList();
+});
+
+// Status changed in the list
+$('#rows').addEventListener('change', async ev => {
+  const sel = ev.target.closest('select[data-status-id]');
+  if (!sel) return;
+  const { statusId, orig, label } = sel.dataset;
+  const to = sel.value;
+  // "Completed" is not a status: it sets the completed flag (the status itself is kept)
+  const [question, body] = to === COMPLETED_OPT
+    ? [`Mark ${label} as completed?`, { completed: true }]
+    : orig === COMPLETED_OPT
+      ? [`Mark ${label} as NOT complete and set its status to "${to}"?`, { completed: false, status: to }]
+      : [`Change the status of ${label} from "${orig}" to "${to}"?`, { status: to }];
+  if (!confirm(question)) { sel.value = orig; fitStatusSelects(sel.parentNode); return; }
+  sel.disabled = true;
+  try {
+    await api(`${API}/${statusId}`, { method: 'PUT', body: JSON.stringify(body) });
+  } catch (err) {
+    if (!err.silent) alert(err.message);
+  }
   loadList();
 });
 
@@ -374,7 +417,7 @@ function fillForm() {
     else if (el.name === 'connectionDesign') el.value = cur.connectionDesign || 'No';
     else el.value = cur[el.name] ?? '';
   }
-  $('#editorTitle').textContent = cur._id ? `${cur.jobNo} ${cur.projectName}` : 'New Estimation';
+  $('#editorTitle').textContent = cur._id ? estLabel(cur) : 'New Estimation';
   $('#excelBtn').disabled = !cur._id;
   $('#emailBtn').disabled = !cur._id;
   $('#proposalBtn').disabled = !cur._id;
@@ -456,6 +499,7 @@ function renamePage(i = activePage) {
 
 // ---------- Chart grid ----------
 function renderChart() {
+  gridSel = null; // cells are rebuilt: a block selection would point at the wrong cells
   const sheets = pg().sheets;
   const head = `<thead><tr>
       <th class="sticky">SHEET NO.</th>
@@ -469,7 +513,7 @@ function renderChart() {
       <th class="sticky">${esc(it.name)}</th>
       <td class="rate">${it.minutes === null ? '<span class="sub">hrs</span>'
         : `<input type="number" min="0" step="any" data-rate="${r}" data-f="minutes" value="${it.minutes}" />/<input type="number" min="1" step="any" data-rate="${r}" data-f="divisor" value="${it.divisor}" />`}</td>
-      ${sheets.map((_, c) => `<td><input type="number" min="0" step="any" class="cnt" data-r="${r}" data-c="${c}" value="${it.counts[c] || ''}" /></td>`).join('')}
+      ${sheets.map((_, c) => `<td><input type="text" inputmode="decimal" autocomplete="off" class="cnt" data-r="${r}" data-c="${c}" value="${it.counts[c] || ''}" title="Quantity — a sum like 12+5 is worked out" /></td>`).join('')}
       <td class="num tot" id="tot-${it.key}"></td><td class="num hrs" id="hrs-${it.key}"></td></tr>`)
     .join('');
   const foot = `<tfoot><tr><th class="sticky">TOTAL</th><td></td>${sheets.map((_, c) => `<td class="num" id="colTot-${c}"></td>`).join('')}
@@ -531,32 +575,39 @@ const AUTO_DESC_GROUPS = {
 };
 const isBlankDesc = d => !String(d.qty ?? '').trim() && !String(d.description ?? '').trim() && !String(d.notes ?? '').trim();
 
+// Generated lines are keyed by item ("BEAM"), or by item and sheet column ("BEAM|0") when Split sheets is on
 function syncAutoDescriptions(page) {
   const counts = Object.fromEntries(page.items.map(it => [it.key, it.counts]));
+  const split = !!page.splitSheets;
   for (const [listKey, groups] of Object.entries(AUTO_DESC_GROUPS)) {
-    // What the chart says now: one line per item for the whole page,
-    // qty = total over all sheets, notes = the sheets it appears on ("S001,S002")
+    // What the chart says now. Normal: one line per item for the whole page, qty = total over all sheets,
+    // notes = the sheets it appears on ("S001,S002"). Split: one line per item per sheet, notes = that sheet.
     const wanted = new Map();
     for (const g of groups) {
       let qty = 0;
       const sheets = [];
       page.sheets.forEach((sheet, c) => {
         const q = g.keys.reduce((a, k) => a + (+(counts[k] || [])[c] || 0), 0);
-        if (q) { qty += q; sheets.push(sheet || `Sheet ${c + 1}`); }
+        if (!q) return;
+        const name = sheet || `Sheet ${c + 1}`;
+        if (split) wanted.set(`${g.name}|${c}`, { qty: String(q), notes: name, name: g.name });
+        qty += q; sheets.push(name);
       });
-      if (qty) wanted.set(g.name, { qty: String(qty), notes: sheets.join(','), name: g.name });
+      if (qty && !split) wanted.set(g.name, { qty: String(qty), notes: sheets.join(','), name: g.name });
     }
     // Update generated lines where they are (keeps any drag-and-drop order), drop ones no longer in the chart.
-    // Older lines were keyed per sheet ("BEAM|0") — they fold into the one line for that item.
+    // A line from the other mode is converted in place, keeping wording the user changed:
+    // split on -> the item's line becomes its per-sheet lines; split off -> per-sheet lines fold into one line.
     const list = [];
     const placed = new Set();
+    const put = (d, key) => { const w = wanted.get(key); list.push({ ...d, qty: w.qty, notes: w.notes, autoKey: key }); placed.add(key); };
     for (const d of page[listKey] || []) {
       if (!d.autoKey) { list.push(d); continue; }
-      const key = d.autoKey.split('|')[0];
-      const w = wanted.get(key);
-      if (!w || placed.has(key)) continue;
-      list.push({ ...d, qty: w.qty, notes: w.notes, autoKey: key }); // keep wording the user changed
-      placed.add(key);
+      const [base, col] = d.autoKey.split('|');
+      if (wanted.has(d.autoKey) && !placed.has(d.autoKey)) put(d, d.autoKey);
+      else if (split && col === undefined) {
+        for (const key of wanted.keys()) if (key.startsWith(`${base}|`) && !placed.has(key)) put(d, key);
+      } else if (!split && col !== undefined && wanted.has(base) && !placed.has(base)) put(d, base);
     }
     // New generated lines go after the last generated line (or at the top)
     while (list.length && isBlankDesc(list[list.length - 1])) list.pop(); // spare blank rows are re-added below
@@ -570,6 +621,29 @@ function syncAutoDescriptions(page) {
   padDescriptions(page);
 }
 
+// Auto fetch turned back on: link lines fetched before (or typed with the same wording) to the chart again, so
+// the sync updates them instead of adding new ones. With Split sheets on, a line matches its item AND its sheet
+// (the Notes column). Extra copies of a line that is already linked are leftovers of earlier fetches: dropped.
+function relinkAutoLines(page) {
+  const split = !!page.splitSheets;
+  const sheetCol = notes => page.sheets.findIndex((s, c) => (s || `Sheet ${c + 1}`).trim().toLowerCase() === String(notes || '').trim().toLowerCase());
+  for (const [key, groups] of Object.entries(AUTO_DESC_GROUPS)) {
+    const names = new Set(groups.map(g => g.name));
+    const taken = new Set(page[key].filter(d => d.autoKey).map(d => d.autoKey));
+    page[key] = page[key].filter(d => {
+      if (d.autoKey) return true;
+      const name = String(d.description || '').trim().toUpperCase();
+      if (!names.has(name)) return true; // the user's own line
+      const c = split ? sheetCol(d.notes) : -1;
+      const autoKey = c >= 0 ? `${name}|${c}` : name;
+      if (taken.has(autoKey)) return false; // duplicate of a line that is already linked
+      d.autoKey = autoKey;
+      taken.add(autoKey);
+      return true;
+    });
+  }
+}
+
 // A sheet column was removed: the sync recalculates totals and sheet lists, nothing to renumber any more
 function dropAutoColumn() {}
 
@@ -581,58 +655,66 @@ function chartChanged() {
   renderDesc('miscDescriptions');
 }
 
-// ---------- Auto fetch Yes/No switch (per page) ----------
+// ---------- Auto fetch and Split sheets Yes/No switches (per page) ----------
 function renderAutoDescToggle() {
   const on = pg().autoDesc !== false;
   $('#autoDescToggle').checked = on;
   $('#autoDescState').textContent = on ? 'Yes' : 'No';
+  // Split sheets only applies to lines fetched from the chart
+  const split = !!pg().splitSheets;
+  $('#splitSheetsToggle').checked = split;
+  $('#splitSheetsToggle').disabled = !on;
+  $('#splitSheetsState').textContent = split ? 'Yes' : 'No';
+  $('#splitSheetsSwitch').classList.toggle('disabled', !on);
+  $('#splitSheetsSwitch').title = on ? 'Show a separate description line for each sheet' : 'Turn on Auto fetch to use Split sheets';
 }
+
+$('#splitSheetsToggle').addEventListener('change', ev => {
+  const page = pg();
+  page.splitSheets = ev.target.checked;
+  syncAutoDescriptions(page);
+  renderDesc('structDescriptions');
+  renderDesc('miscDescriptions');
+  renderAutoDescToggle();
+  saveAutoDesc(page, `Split sheets ${page.splitSheets ? 'Yes' : 'No'}`);
+});
 
 $('#autoDescToggle').addEventListener('change', ev => {
   const page = pg();
   const on = ev.target.checked;
   const msg = on
-    ? 'Turn auto fetch ON?\n\nDescription lines will be filled from the estimation chart. Existing lines with the same description will have their quantity and notes replaced by the chart values.'
+    ? 'Turn auto fetch ON?\n\nDescription lines will be filled from the estimation chart. Existing lines with the same description will have their quantity and notes replaced by the chart values, and repeated copies of them are removed.'
     : 'Turn auto fetch OFF?\n\nLines already fetched from the chart are kept as normal editable lines, and chart changes will no longer update them.';
   if (!confirm(msg)) { ev.target.checked = !on; return; }
   page.autoDesc = on;
-  const keys = ['structDescriptions', 'miscDescriptions'];
   if (on) {
-    // Re-link lines that were fetched before (or typed with the same wording) so they are not duplicated
-    for (const key of keys) {
-      const names = new Set(AUTO_DESC_GROUPS[key].map(g => g.name));
-      const taken = new Set(page[key].filter(d => d.autoKey).map(d => d.autoKey.split('|')[0]));
-      page[key].forEach(d => {
-        const name = String(d.description || '').trim().toUpperCase();
-        if (!d.autoKey && names.has(name) && !taken.has(name)) { d.autoKey = name; taken.add(name); }
-      });
-    }
+    relinkAutoLines(page);
     syncAutoDescriptions(page);
   } else {
-    for (const key of keys) page[key].forEach(d => { delete d.autoKey; });
+    for (const key of Object.keys(AUTO_DESC_GROUPS)) page[key].forEach(d => { delete d.autoKey; });
   }
   renderDesc('structDescriptions');
   renderDesc('miscDescriptions');
   renderAutoDescToggle();
-  saveAutoDesc(page);
+  saveAutoDesc(page, `Auto fetch ${on ? 'Yes' : 'No'}`);
 });
 
-// Save the switch (and the page's description lines it just changed) right away, so a refresh keeps it
-async function saveAutoDesc(page) {
+// Save the switches (and the page's description lines they just changed) right away, so a refresh keeps them
+async function saveAutoDesc(page, what) {
   if (!cur._id) { dirty = true; return; } // not created yet: kept by the normal Save
   const trimmed = list => { const l = [...list]; while (l.length && isBlankDesc(l[l.length - 1])) l.pop(); return l; };
   try {
     await api(`${API}/${cur._id}/pages/${activePage}/auto-desc`, {
       method: 'PUT',
       body: JSON.stringify({
-        autoDesc: page.autoDesc, pageName: (page.name || '').trim(),
+        autoDesc: page.autoDesc, splitSheets: !!page.splitSheets, pageName: (page.name || '').trim(),
         structDescriptions: trimmed(page.structDescriptions), miscDescriptions: trimmed(page.miscDescriptions),
       }),
     });
-    $('#saveMsg').textContent = `Auto fetch ${page.autoDesc ? 'Yes' : 'No'} saved ${new Date().toLocaleTimeString()}`;
+    $('#saveMsg').textContent = `${what} saved ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     dirty = true; // e.g. a new page that isn't saved yet: the normal Save stores it
-    $('#saveMsg').textContent = 'Auto fetch changed — click Save to keep it';
+    $('#saveMsg').textContent = `${what.replace(/ (Yes|No)$/, '')} changed — click Save to keep it`;
   }
 }
 
@@ -744,7 +826,14 @@ form.addEventListener('input', ev => {
   const d = el.dataset;
   dirty = true;
   $('#saveMsg').textContent = '';
-  if (d.r !== undefined) { pg().items[+d.r].counts[+d.c] = el.value === '' ? 0 : +el.value; chartChanged(); }
+  if (d.r !== undefined) {
+    // A quantity can be a sum (12+5): totals follow as soon as it is complete; "12+" keeps the last good value
+    const v = evalQty(el.value);
+    el.classList.toggle('bad', v === null);
+    if (v === null) return;
+    pg().items[+d.r].counts[+d.c] = v;
+    chartChanged();
+  }
   else if (d.rate !== undefined) pg().items[+d.rate][d.f] = el.value === '' ? 0 : +el.value;
   else if (d.sheet !== undefined) { pg().sheets[+d.sheet] = el.value; chartChanged(); return; }
   else if (d.dwg) {
@@ -782,15 +871,177 @@ form.addEventListener('input', ev => {
   updateComputed();
 });
 
-// Arrow-key / Enter navigation in the quantity grid
+// The mouse wheel over a focused number box steps its value (browser default): let go of the box instead,
+// so the wheel just scrolls the page and the typed value stays as it is (everywhere in the app)
+document.addEventListener('wheel', ev => {
+  const el = ev.target;
+  if (el instanceof HTMLInputElement && el.type === 'number' && el === document.activeElement) el.blur();
+}, { passive: true, capture: true });
+
+// ---------- Quantity grid: highlight, block selection and fill (like Excel) ----------
+// Click a cell and drag (or Shift+click) to select a block; the cell you started in stays active.
+// Ctrl+Enter or Ctrl+D copies the active cell's value into every selected cell.
+// Ctrl+D with no block selected copies the value from the cell above.
+const cellAt = (r, c) => $(`#chart input.cnt[data-r="${r}"][data-c="${c}"]`);
+const cellPos = el => (el?.matches?.('input.cnt') ? { r: +el.dataset.r, c: +el.dataset.c } : null);
+let gridSel = null;   // { anchor: {r, c}, to: {r, c} } — block selection, anchor = active cell
+let gridDrag = null;  // { r, c } while the mouse button is held after pressing on a cell
+
+const selBox = () => gridSel && {
+  r0: Math.min(gridSel.anchor.r, gridSel.to.r), r1: Math.max(gridSel.anchor.r, gridSel.to.r),
+  c0: Math.min(gridSel.anchor.c, gridSel.to.c), c1: Math.max(gridSel.anchor.c, gridSel.to.c),
+};
+
+// Highlight the selected cells, and the item names (left) / sheet names (top) of the focused cell or block
+function paintGrid() {
+  const chart = $('#chart');
+  chart.querySelectorAll('.cell-focus, .in-range').forEach(el => el.classList.remove('cell-focus', 'in-range'));
+  const focused = cellPos(document.activeElement);
+  const box = selBox() || (focused && { r0: focused.r, r1: focused.r, c0: focused.c, c1: focused.c });
+  if (!box) return;
+  const rowHeads = chart.querySelectorAll('tbody tr th.sticky'), sheetHeads = chart.querySelectorAll('thead th.sheet');
+  for (let r = box.r0; r <= box.r1; r++) rowHeads[r]?.classList.add('cell-focus');
+  for (let c = box.c0; c <= box.c1; c++) sheetHeads[c]?.classList.add('cell-focus');
+  if (!gridSel) return;
+  for (let r = box.r0; r <= box.r1; r++) for (let c = box.c0; c <= box.c1; c++) cellAt(r, c)?.parentElement.classList.add('in-range');
+}
+function clearGridSel() { gridSel = null; paintGrid(); }
+
+$('#chart').addEventListener('mousedown', ev => {
+  const pos = cellPos(ev.target);
+  if (!pos || ev.button !== 0) return;
+  const active = cellPos(document.activeElement);
+  if (ev.shiftKey && active) { // Shift+click: block from the active cell to this one
+    ev.preventDefault();
+    gridSel = { anchor: active, to: pos };
+    return paintGrid();
+  }
+  gridSel = null;
+  gridDrag = pos;
+});
+$('#chart').addEventListener('mouseover', ev => {
+  if (!gridDrag || !(ev.buttons & 1)) return;
+  const pos = cellPos(ev.target) || cellPos(ev.target.querySelector?.('input.cnt'));
+  if (!pos) return;
+  if (pos.r === gridDrag.r && pos.c === gridDrag.c && !gridSel) return; // still inside the first cell
+  gridSel = { anchor: gridDrag, to: pos };
+  $('#chart').classList.add('grid-selecting'); // no text selection while dragging
+  const a = cellAt(gridDrag.r, gridDrag.c);
+  if (document.activeElement !== a) a.focus();
+  getSelection().removeAllRanges();
+  paintGrid();
+});
+document.addEventListener('mouseup', () => { gridDrag = null; $('#chart').classList.remove('grid-selecting'); });
+
+// Put one value into a set of cells, then update totals / generated description lines once
+function fillCells(cells, raw) {
+  const v = evalQty(raw);
+  if (v === null) return;
+  for (const { r, c } of cells) {
+    pg().items[r].counts[c] = v;
+    const el = cellAt(r, c);
+    if (el) el.value = v ? String(v) : '';
+  }
+  dirty = true;
+  $('#saveMsg').textContent = '';
+  chartChanged();
+  updateComputed();
+}
+
+// Quantity cell value: a number, or a sum like 12+5, =12+5, 3*4, (10+2)/2. Returns the number (blank = 0),
+// or null if it is not a complete, non-negative sum. Parsed by hand: never runs the text as code.
+function evalQty(text) {
+  const s = String(text ?? '').replace(/\s+/g, '').replace(/^=/, '');
+  if (s === '') return 0;
+  if (!/^[\d.+\-*/()]+$/.test(s)) return null;
+  let i = 0;
+  const number = () => {
+    const m = /^\d*\.?\d+|^\d+\.?/.exec(s.slice(i));
+    if (!m) throw 0;
+    i += m[0].length;
+    return parseFloat(m[0]);
+  };
+  const factor = () => {
+    if (s[i] === '-') { i++; return -factor(); }
+    if (s[i] === '+') { i++; return factor(); }
+    if (s[i] === '(') { i++; const v = expr(); if (s[i++] !== ')') throw 0; return v; }
+    return number();
+  };
+  const term = () => {
+    let v = factor();
+    while (s[i] === '*' || s[i] === '/') {
+      const op = s[i++], f = factor();
+      if (op === '/' && f === 0) throw 0;
+      v = op === '*' ? v * f : v / f;
+    }
+    return v;
+  };
+  function expr() {
+    let v = term();
+    while (s[i] === '+' || s[i] === '-') v = s[i++] === '+' ? v + term() : v - term();
+    return v;
+  }
+  try {
+    const v = expr();
+    if (i !== s.length || !Number.isFinite(v) || v < 0) return null;
+    return Math.round(v * 1e6) / 1e6;
+  } catch { return null; }
+}
+
+// Quantity cells only take numbers and + - * / ( ) . = (letters etc. are ignored)
+$('#chart').addEventListener('beforeinput', ev => {
+  if (cellPos(ev.target) && ev.data && !/^[\d.+\-*/()=\s]+$/.test(ev.data)) ev.preventDefault();
+});
+
+// Leaving a quantity cell: show the worked-out number (12+5 -> 17); an unfinished sum goes back to the last value
+$('#chart').addEventListener('change', ev => {
+  const pos = cellPos(ev.target);
+  if (!pos) return;
+  const v = evalQty(ev.target.value);
+  const n = v === null ? pg().items[pos.r].counts[pos.c] : v;
+  ev.target.value = n ? String(n) : '';
+  ev.target.classList.remove('bad');
+});
+
+$('#chart').addEventListener('focusin', ev => {
+  const pos = cellPos(ev.target);
+  // Cursor at the end of the value (12 -> after the 2), also when the cell was clicked in the middle
+  if (pos) {
+    const el = ev.target;
+    setTimeout(() => { if (document.activeElement === el) el.setSelectionRange(el.value.length, el.value.length); });
+  }
+  // Moving to a cell outside the block (Tab, arrows, a click) ends the block selection
+  if (gridSel && (!pos || pos.r !== gridSel.anchor.r || pos.c !== gridSel.anchor.c) && !gridDrag) gridSel = null;
+  paintGrid();
+});
+$('#chart').addEventListener('focusout', ev => {
+  if (!$('#chart').contains(ev.relatedTarget)) { gridSel = null; setTimeout(paintGrid); }
+});
+
 $('#chart').addEventListener('keydown', ev => {
-  const d = ev.target.dataset;
-  if (d.r === undefined) return;
-  const m = { ArrowUp: [-1, 0], ArrowDown: [1, 0], Enter: [1, 0] }[ev.key];
+  const pos = cellPos(ev.target);
+  if (!pos) return;
+  const ctrl = ev.ctrlKey || ev.metaKey;
+  // Fill: Ctrl+Enter / Ctrl+D -> the active cell's value into the whole block
+  if (ctrl && (ev.key === 'Enter' || ev.key.toLowerCase() === 'd')) {
+    ev.preventDefault(); // Ctrl+D would otherwise bookmark the page
+    const box = selBox();
+    if (box) {
+      const cells = [];
+      for (let r = box.r0; r <= box.r1; r++) for (let c = box.c0; c <= box.c1; c++) cells.push({ r, c });
+      fillCells(cells, ev.target.value);
+    } else if (ev.key.toLowerCase() === 'd' && pos.r > 0) {
+      fillCells([pos], cellAt(pos.r - 1, pos.c)?.value ?? ''); // Ctrl+D on one cell: copy from the cell above
+    }
+    return;
+  }
+  if (ev.key === 'Escape' && gridSel) { ev.preventDefault(); return clearGridSel(); }
+  // Arrow-key / Enter navigation
+  const m = !ctrl && { ArrowUp: [-1, 0], ArrowDown: [1, 0], Enter: [1, 0] }[ev.key];
   if (!m) return;
   ev.preventDefault();
-  const next = $(`#chart input[data-r="${+d.r + m[0]}"][data-c="${+d.c + m[1]}"]`);
-  if (next) { next.focus(); next.select(); }
+  const next = cellAt(pos.r + m[0], pos.c + m[1]);
+  if (next) next.focus(); // the cursor goes to the end of its value (see focusin)
 });
 
 form.addEventListener('click', ev => {
@@ -868,7 +1119,7 @@ $('#deletePageBtn').onclick = () => {
 const saveBody = () => ({ ...cur, pages: cur.pages.map(p => ({ ...p, name: (p.name || '').trim(), sheets: p.sheets.map(s => s.trim()) })) });
 // Fields the server sets; an auto-save copies just these back so it never touches what the user is typing
 const SERVER_FIELDS = ['updatedAt', 'updatedBy', 'createdAt', 'createdBy', 'totalCount', 'totalHours', 'totalDwgs', 'approxTonnage',
-  'sheetCount', 'pageCount', 'wonAt', 'completedAt', '__v'];
+  'sheetCount', 'pageCount', 'wonAt', 'completedAt', 'completedBy', '__v'];
 
 let saveInFlight = null;
 async function save(opts = {}) {
@@ -902,7 +1153,7 @@ async function doSave({ auto = false } = {}) {
     dirty = false;
     $('#saveMsg').textContent = `Saved ${new Date().toLocaleTimeString()}`;
     if (wasNew) { history.replaceState(null, '', `#/edit/${cur._id}`); lastHash = location.hash; }
-    $('#editorTitle').textContent = `${cur.jobNo} ${cur.projectName}`;
+    $('#editorTitle').textContent = estLabel(cur);
     $('#excelBtn').disabled = false;
     $('#emailBtn').disabled = false;
     $('#proposalBtn').disabled = false;
@@ -1206,6 +1457,69 @@ $('#logPrev').onclick = () => loadLog(logPage - 1);
 $('#logNext').onclick = () => loadLog(logPage + 1);
 
 // =====================================================================
+// COMPLETED LOG (all users)
+// =====================================================================
+let compPage = 1;
+const localDay = d => { const x = new Date(d); return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+
+// Completed on / before the due date, or how many days late
+function onTime(e) {
+  if (!e.dueDate || !e.completedAt) return '<span class="sub">—</span>';
+  const late = Math.round((Date.parse(localDay(e.completedAt)) - Date.parse(toInputDate(e.dueDate))) / 86400000);
+  return late <= 0 ? '<span class="due due-ok">On time</span>'
+    : `<span class="due due-over">${late} day${late === 1 ? '' : 's'} late</span>`;
+}
+
+async function loadCompleted(page = compPage) {
+  const params = new URLSearchParams();
+  const set = (k, v) => { if (v) params.set(k, v); };
+  set('q', $('#compSearch').value.trim());
+  set('from', $('#compFrom').value);
+  set('to', $('#compTo').value);
+  $('#compClear').hidden = !params.toString();
+  params.set('tz', new Date().getTimezoneOffset());
+  params.set('page', page);
+  const r = await api(`${API}/completed?${params}`);
+  compPage = r.page;
+  const first = (r.page - 1) * 100;
+  $('#compRows').innerHTML = r.items.map((e, i) => `<tr class="row-link ${e.status === 'Won' ? 'row-won' : ''}" data-open-id="${e._id}" title="Click to open">
+      <td class="num sl-no">${first + i + 1}</td>
+      <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
+      <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
+      <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
+      <td>${esc(e.doneBy) || '—'}</td>
+      <td class="num">${fmt(e.totalHours)}</td>
+      <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
+      <td>${fmtDate(e.dueDate)}</td>
+      <td>${e.completedAt ? fmtDateTime(e.completedAt) : '—'}</td>
+      <td>${esc(e.completedBy) || '<span class="sub">—</span>'}</td>
+      <td>${onTime(e)}</td>
+      <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
+    </tr>`).join('');
+  $('#compEmpty').hidden = r.items.length > 0;
+  $('#compTotal').textContent = `${r.total.toLocaleString()} completed estimation${r.total === 1 ? '' : 's'}`;
+  $('#compPage').textContent = `Page ${r.page} of ${r.pages}`;
+  $('#compPrev').disabled = r.page <= 1;
+  $('#compNext').disabled = r.page >= r.pages;
+}
+
+$('#compRows').addEventListener('click', ev => {
+  if (ev.target.closest('a, button')) return;
+  const row = ev.target.closest('tr[data-open-id]');
+  if (!row || getSelection().toString()) return;
+  const url = `#/edit/${row.dataset.openId}`;
+  if (ev.ctrlKey || ev.metaKey) window.open(url, '_blank');
+  else location.hash = url;
+});
+let compSearchTimer;
+$('#compSearch').oninput = () => { clearTimeout(compSearchTimer); compSearchTimer = setTimeout(() => loadCompleted(1), 250); };
+$('#compFrom').onchange = () => loadCompleted(1);
+$('#compTo').onchange = () => loadCompleted(1);
+$('#compClear').onclick = () => { ['#compSearch', '#compFrom', '#compTo'].forEach(s => { $(s).value = ''; }); loadCompleted(1); };
+$('#compPrev').onclick = () => loadCompleted(compPage - 1);
+$('#compNext').onclick = () => loadCompleted(compPage + 1);
+
+// =====================================================================
 // NOTIFICATIONS (estimations changed after being marked Completed)
 // =====================================================================
 let notifPage = 1;
@@ -1230,7 +1544,7 @@ async function loadNotifications(page = notifPage) {
   notifPage = r.page;
   $('#notifRows').innerHTML = r.items.map(n => `<tr class="${n.read ? 'notif-read' : 'notif-unread'}">
       <td>${fmtDateTime(n.createdAt)}</td>
-      <td>${n.action === 'Deleted' ? `<strong>${esc(n.jobNo)}</strong>` : `<a href="#/edit/${n.estimation}"><strong>${esc(n.jobNo)}</strong></a>`}</td>
+      <td>${n.action === 'Deleted' ? `<strong>${esc(n.jobNo) || '—'}</strong>` : `<a href="#/edit/${n.estimation}"><strong>${esc(n.jobNo) || '—'}</strong></a>`}</td>
       <td class="project-cell" title="${esc(n.projectName)}">${esc(n.projectName)}</td>
       <td>${esc(n.clientName) || '—'}</td>
       <td>${esc(n.by) || '<span class="sub">—</span>'}${n.byRole ? `<div class="sub">${esc(ROLE_NAMES[n.byRole] || n.byRole)}</div>` : ''}</td>
@@ -1279,14 +1593,17 @@ async function route() {
   const users = hash.startsWith('#/users');
   const log = hash.startsWith('#/log');
   const notif = hash.startsWith('#/notifications');
-  $('#listView').hidden = editing || clients || users || log || notif;
+  const completed = hash.startsWith('#/completed');
+  $('#listView').hidden = editing || clients || users || log || notif || completed;
+  $('#completedView').hidden = !completed;
+  $('#navCompleted').classList.toggle('active', completed);
   $('#editorView').hidden = !editing;
   $('#clientsView').hidden = !clients;
   $('#usersView').hidden = !users;
   $('#logView').hidden = !log;
   $('#notifView').hidden = !notif;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif);
+  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif && !completed);
   $('#navClients').classList.toggle('active', clients);
   $('#navNotif').classList.toggle('active', notif);
   $('#navUsers').classList.toggle('active', users);
@@ -1298,6 +1615,7 @@ async function route() {
     else if (users) await loadUsers();
     else if (log) await loadLog(1);
     else if (notif) await loadNotifications(1);
+    else if (completed) await loadCompleted(1);
     else { await loadList(); refreshNotifCount(); }
   } catch (err) {
     if (err.silent) return;

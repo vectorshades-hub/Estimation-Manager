@@ -126,6 +126,7 @@
       structDescriptions: [],
       miscDescriptions: [],
       autoDesc: true,
+      splitSheets: false,
     };
   }
 
@@ -147,6 +148,7 @@
       structDescriptions: [...((p && p.structDescriptions) || [])],
       miscDescriptions: [...((p && p.miscDescriptions) || [])],
       autoDesc: !(p && p.autoDesc === false),
+      splitSheets: !!(p && p.splitSheets),
     };
   }
 

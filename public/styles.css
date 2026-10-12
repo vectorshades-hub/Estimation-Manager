@@ -89,8 +89,6 @@ th.num, td.num { text-align: right; }
 .btn.icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 4px 7px; vertical-align: middle; }
 .btn.icon-btn svg { display: block; pointer-events: none; } /* keep clicks on the button so data-del is read */
 .btn.icon-btn.danger { color: var(--danger); border-color: #f1b9b2; background: #fff5f4; }
-.btn.icon-btn.done-btn { color: #3b6fd1; background: #f2f6fd; }
-.btn.icon-btn.done-btn:hover { color: #fff; background: #3b6fd1; border-color: #3b6fd1; }
 .btn.icon-btn.danger:hover { color: #fff; background: var(--danger); border-color: var(--danger); }
 .sub { color: var(--muted); font-size: 12px; font-weight: normal; }
 .center { text-align: center; }
@@ -117,12 +115,7 @@ td.actions-cell { text-align: right; }
 .list tbody tr.row-done { background: #eaf0fb; }
 .list tbody tr.row-done:hover { background: #dde7f8; }
 .list tbody tr.row-done td:first-child { box-shadow: inset 4px 0 0 #3b6fd1; }
-.done-badge { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
-  background: #3b6fd1; color: #fff; white-space: nowrap; }
-.btn.done-btn { color: #2c5bb8; border-color: #b5c9ef; }
-.btn.done-btn:hover { background: #eaf0fb; }
-.btn.done-on { background: #3b6fd1; border-color: #3b6fd1; color: #fff; }
-.btn.done-on:hover { background: #2f5cb4; }
+.badge.Completed { background: #3b6fd1; color: #fff; font-weight: 600; }
 .btn.won-btn { color: #1b7a3d; border-color: #9fd8b1; }
 .btn.won-btn:hover { background: #dff5e6; }
 .btn.won-on { background: #2e9e55; border-color: #2e9e55; color: #fff; }
@@ -244,6 +237,23 @@ table.desc { width: 100%; border-collapse: collapse; }
 .notif-action { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e7eefb; color: #1f5fbf; white-space: nowrap; }
 .notif-action.warn { background: #fde4e1; color: #b23324; }
 .list .sl-no { width: 1%; color: var(--muted); }
+
+/* Status drop-down in the list: looks like the status badge (colours come from .badge.<Status>) */
+.list select.status-select {
+  appearance: none; -webkit-appearance: none; max-width: 170px; padding: 3px 22px 3px 10px;
+  border: 1px solid transparent; font-family: inherit; line-height: 1.3; cursor: pointer; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23555e6e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 9px 6px;
+}
+.list select.status-select:hover:not(:disabled) { border-color: currentColor; }
+.list select.status-select.Completed, .list tr.row-won select.status-select.Won { /* white arrow on solid pills */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffffff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.list select.status-select.Completed:hover { border-color: #1f4fa8; }
+.list select.status-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.list select.status-select:disabled { cursor: not-allowed; opacity: .85; background-image: none; padding-right: 10px; }
+.list select.status-select option { background: #fff; color: #1f2937; font-weight: normal; }
+.list-note { margin: 10px 2px 0; }
 
 /* ---------- Priority clients / less value jobs ---------- */
 .star { color: #e0a100; }
@@ -372,6 +382,20 @@ dialog#pwDialog::backdrop { background: rgba(15, 25, 45, .45); }
 .chart-wrap .chart tfoot td, .chart-wrap .chart tfoot th { position: sticky; bottom: 0; z-index: 3; }
 .chart-wrap .chart tfoot th.sticky { left: 0; z-index: 5; }
 .chart-wrap .chart tbody th.sticky { z-index: 2; }
+
+/* Quantity cell with an unfinished sum (e.g. "12+"): goes back to the last value when left */
+.chart td input.cnt.bad { outline: 2px solid #e5484d; outline-offset: -2px; color: #b23324; }
+
+/* Block selection in the quantity grid (Ctrl+Enter / Ctrl+D fills it) */
+.chart td.in-range { background: #cfe0ff; box-shadow: inset 0 0 0 1px #6f9be8; }
+.chart td.in-range input.cnt { background: transparent; }
+.chart td.in-range input.cnt:focus { background: #fff; } /* the active cell: its value is what gets filled */
+.chart.grid-selecting, .chart.grid-selecting input { user-select: none; cursor: cell; }
+
+/* Focused quantity cell: its item name (left) and sheet name (top) light up */
+.chart tbody th.sticky.cell-focus { background: #ffd54a; box-shadow: inset 4px 0 0 #c27c00; }
+.chart thead th.sheet.cell-focus { background: #dbe7ff; box-shadow: inset 0 -3px 0 var(--primary); }
+.chart thead th.sheet.cell-focus .sheet-name { border-color: var(--primary); color: var(--primary); font-weight: 700; background: #fff; }
 @media (max-width: 1000px) {
   .chart-layout { flex-wrap: wrap; }
   .chart-layout .chart-wrap { flex-basis: 100%; max-width: 100%; }
@@ -472,7 +496,6 @@ dialog#pwDialog::backdrop { background: rgba(15, 25, 45, .45); }
     linear-gradient(90deg, #1f5fbf 0 33.34%, #1b7a3d 33.34% 66.67%, #c27c00 66.67%) border-box;
 }
 #form .card.details-card > h3:first-child { background: #fff8dc; border-bottom-color: #f3e6b3; color: #7a5a00; border-radius: 6px 6px 0 0; }
-.list tbody tr.row-done .badge { box-shadow: 0 0 0 1px #b9cbec; background-color: #fff; }
 
 /* ---------- Yes/No toggle switch (Descriptions: auto fetch from chart) ---------- */
 label.switch { position: relative; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 12px; color: var(--muted); }
@@ -484,3 +507,5 @@ label.switch input:checked + .switch-track .switch-thumb { transform: translateX
 label.switch input:focus-visible + .switch-track { outline: 2px solid #bcd2f5; outline-offset: 2px; }
 .switch-state { min-width: 22px; font-weight: 700; color: var(--muted); }
 label.switch input:checked ~ .switch-state { color: #1b7a3d; }
+label.switch.disabled { opacity: .5; cursor: not-allowed; }
+label.switch + label.switch { margin-left: 14px; }
