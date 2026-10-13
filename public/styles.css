@@ -125,8 +125,8 @@ td.actions-cell { text-align: right; }
 .cd-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font: inherit; font-size: 11px; font-weight: 600;
   background: #eceff3; color: #555e6e; border: 1px solid #d5dae2; cursor: pointer; }
 .cd-badge:hover { border-color: #8a94a6; }
-.cd-badge.yes { background: #fde4e1; color: #b23324; border-color: #f3b7ae; }
-.cd-badge.yes:hover { border-color: #b23324; }
+.cd-badge.yes { background: #d9443a; color: #fff; border-color: #c0392b; }
+.cd-badge.yes:hover { background: #c0392b; border-color: #a93226; }
 .due { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .due-ok { background: #dff5e6; color: #1b7a3d; }
 .due-soon { background: #fff4dc; color: #a26800; }
