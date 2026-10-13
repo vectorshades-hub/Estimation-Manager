@@ -1704,8 +1704,8 @@ async function loadCalendarDay() {
       <td>${esc(e.doneBy) || '—'}</td>
       <td class="num">${fmt(e.totalHours)}</td>
       <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
-      <td>${e.completed ? '<span class="due due-closed">✓ Sent for bid</span>' : due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
-      <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
+      <td>${e.completed ? `<span class="due due-closed">Sent${e.completedAt ? ` ${new Date(e.completedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>` : due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
+      <td>${e.completed ? '<span class="badge Completed">✓ Sent for Bid</span>' : `<span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>`}</td>
     </tr>`;
   }).join('');
   $('#calEmpty').hidden = items.length > 0;
