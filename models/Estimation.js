@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { MAX_SHEETS, DEFAULT_HRS_PER_TON, normalizeItems, computeEstimation } = require('../public/calc');
 
-const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
+const STATUSES = ['Yet To Start','In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
 const COMPLEXITIES = ['', 'Low', 'Medium', 'High'];
 const DELIVERABLES = ['Shop Drawings', 'Erection Drawings', 'CNC Files', 'Other files'];
 // Standard exclusions printed in the Word proposal (from the proposal template)
@@ -69,7 +69,7 @@ const estimationSchema = new mongoose.Schema(
     contactPerson: { type: String, trim: true },
     contactEmail: { type: String, trim: true, lowercase: true },
     dueDate: { type: Date },
-    status: { type: String, enum: STATUSES, default: 'Received' },
+    status: { type: String, enum: STATUSES, default: 'Yet To Start' },
     wonAt: { type: Date }, // set when status becomes Won (used for awarded-per-year counts)
     completed: { type: Boolean, default: false }, // estimation work finished ("Mark Complete")
     completedAt: { type: Date, index: true },
@@ -173,6 +173,10 @@ estimationSchema.statics.migrateToPages = async function () {
     await coll.updateOne({ _id: d._id }, { ...(Object.keys(set).length ? { $set: set } : {}), $unset: { structDescriptions: '', miscDescriptions: '' } });
   }
   if (withDesc.length) console.log(`Moved descriptions of ${withDesc.length} estimation(s) into Page 1`);
+
+  // The "Received" status was renamed to "Yet To Start"
+  const renamed = await coll.updateMany({ status: 'Received' }, { $set: { status: 'Yet To Start' } });
+  if (renamed.modifiedCount) console.log(`Renamed status "Received" to "Yet To Start" on ${renamed.modifiedCount} estimation(s)`);
 
   // Recompute derived totals (sheetCount / pageCount). Old records may miss fields that are required today
   // (e.g. No.), so only validate what changes, and never let one bad record stop the server from starting.

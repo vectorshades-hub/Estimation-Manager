@@ -23,7 +23,7 @@ router.get('/', async (req, res, next) => {
     ]);
     res.json({
       items: items.map(({ readBy, ...n }) => ({ ...n, read: (readBy || []).includes(me) })),
-      total, unread, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+      total, unread, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), pageSize: PAGE_SIZE,
     });
   } catch (err) {
     next(err);

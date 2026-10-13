@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Estimation Manager</title>
-  <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
-  <link rel="icon" type="image/png" href="favicon-32.png" sizes="32x32" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <link rel="manifest" href="site.webmanifest" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body class="signed-out">
   <!-- ===================== LOGIN / FIRST-TIME SETUP ===================== -->
@@ -39,17 +39,19 @@
   </div>
 
   <header class="topbar">
-    <h1><a href="#/">Estimation Manager</a></h1>
+    <h1><a href="/">Estimation Manager</a></h1>
     <nav class="nav">
-      <a href="#/" id="navEst">Estimations</a>
-      <a href="#/completed" id="navCompleted">Completed</a>
-      <a href="#/clients" id="navClients">Clients</a>
-      <a href="#/notifications" id="navNotif" data-min-role="team_leader">Notifications <span class="notif-count" id="notifCount" hidden></span></a>
-      <a href="#/users" id="navUsers" data-min-role="admin">Users</a>
-      <a href="#/log" id="navLog" data-min-role="admin">Log</a>
+      <a href="/" id="navEst">Estimations</a>
+      <a href="/completed" id="navCompleted">Completed</a>
+      <a href="/calendar" id="navCalendar">Calendar</a>
+      <a href="/clients" id="navClients">Clients</a>
+      <a href="/notifications" id="navNotif" data-min-role="team_leader">Notifications <span class="notif-count" id="notifCount" hidden></span></a>
+      <a href="/users" id="navUsers" data-min-role="admin">Users</a>
+      <a href="/log" id="navLog" data-min-role="admin">Log</a>
+      <a href="/backups" id="navBackups" data-min-role="admin">Backups</a>
     </nav>
     <span class="spacer"></span>
-    <a href="#/new" class="btn primary" id="newBtn">+ New Estimation</a>
+    <a href="/new" class="btn primary" id="newBtn">+ New Estimation</a>
     <div class="user-menu">
       <button type="button" class="user-btn" id="userBtn"><span id="userName"></span><span class="role-badge" id="userRole"></span> ▾</button>
       <div class="user-dropdown" id="userDropdown" hidden>
@@ -79,10 +81,11 @@
         <button type="button" data-due-offset="0" title="Show estimations due today">Today</button>
         <button type="button" data-due-offset="1" title="Show estimations due tomorrow">Tomorrow</button>
       </div>
-      <label class="date-filter">From<input type="date" id="fromDate" /></label>
-      <label class="date-filter">To<input type="date" id="toDate" /></label>
+      <label class="date-filter" title="Show estimations due on or after this date">Due from<input type="date" id="fromDate" /></label>
+      <label class="date-filter" title="Show estimations due on or before this date">Due to<input type="date" id="toDate" /></label>
       <button type="button" class="btn" id="clearFilters" title="Clear all filters">Clear</button>
       <button type="button" class="btn export-btn" id="exportBtn" data-min-role="team_leader" title="Export the estimations shown below to Excel">⬇ Export to Excel</button>
+      <button type="button" class="btn" id="bulkBtn" data-min-role="admin" title="Add many estimations at once from an Excel file">⬆ Bulk upload</button>
     </section>
 
     <div class="table-wrap">
@@ -109,22 +112,38 @@
       </table>
       <p id="empty" class="empty" hidden>No estimations yet. Click “New Estimation” to add one.</p>
     </div>
+    <nav class="pager" id="listPager" aria-label="Pages"></nav>
     <p class="hint list-note">Completed estimations stay in this list for <span id="completedDays">3</span> days.
-      All completed estimations are on the <a href="#/completed">Completed</a> page.</p>
+      All completed estimations are on the <a href="/completed">Completed</a> page.</p>
   </main>
 
   <!-- ===================== EDITOR VIEW ===================== -->
   <main id="editorView" hidden>
     <div class="editor-bar">
-      <a href="#/" class="btn">← Back</a>
+      <a href="/" class="btn">← Back</a>
       <h2 id="editorTitle">New Estimation</h2>
       <span id="auditInfo" class="hint"></span>
       <span id="lessValueBadge" class="lv-badge" hidden>Less value job</span>
       <span class="spacer"></span>
       <span id="saveMsg" class="save-msg"></span>
       <button class="btn submittal-btn" id="packageBtn" type="button" title="Download the Excel chart and the Word proposal together in one zip">📦 Ready for Submittal</button>
-      <button class="btn" id="excelBtn" type="button">Download Excel</button>
-      <button class="btn" id="proposalBtn" type="button">📄 Proposal (Word)</button>
+      <!-- Split buttons: the main part downloads one file; ▾ (shown when the chart has several pages) offers one file per page -->
+      <div class="split-btn" id="excelSplit">
+        <button class="btn" id="excelBtn" type="button">Download Excel</button>
+        <button class="btn split-caret" type="button" data-menu="excelMenu" title="More download options" aria-label="More Excel download options">▾</button>
+        <div class="user-dropdown split-menu" id="excelMenu" hidden>
+          <button type="button" data-download="excel">Download Excel (all pages in one file)</button>
+          <button type="button" data-download="excel" data-separate="1">Download as separate Excel (zip)</button>
+        </div>
+      </div>
+      <div class="split-btn" id="proposalSplit">
+        <button class="btn" id="proposalBtn" type="button">📄 Proposal (Word)</button>
+        <button class="btn split-caret" type="button" data-menu="proposalMenu" title="More download options" aria-label="More proposal download options">▾</button>
+        <div class="user-dropdown split-menu" id="proposalMenu" hidden>
+          <button type="button" data-download="proposal">Proposal (all pages in one file)</button>
+          <button type="button" data-download="proposal" data-separate="1">Download as separate Proposals (zip)</button>
+        </div>
+      </div>
       <button class="btn" id="emailBtn" type="button">✉ Reply Email</button>
       <button class="btn primary" id="saveBtn" type="button">Save</button>
     </div>
@@ -252,11 +271,13 @@
               </label></div>
             <div class="desc-sub">
               <div class="desc-sub-head"><h4>Struct. Description</h4><span class="spacer"></span>
+                <button type="button" class="btn small" data-add="structDescriptions" data-heading="1" title="Add a heading line (bold, shaded)">+ Add heading</button>
                 <button type="button" class="btn small" data-add="structDescriptions">+ Add line</button></div>
               <table class="desc" id="structDescriptions"></table>
             </div>
             <div class="desc-sub">
               <div class="desc-sub-head"><h4>Misc. Description</h4><span class="spacer"></span>
+                <button type="button" class="btn small" data-add="miscDescriptions" data-heading="1" title="Add a heading line (bold, shaded)">+ Add heading</button>
                 <button type="button" class="btn small" data-add="miscDescriptions">+ Add line</button></div>
               <table class="desc" id="miscDescriptions"></table>
             </div>
@@ -366,16 +387,50 @@
         <table class="list">
           <thead><tr><th class="num sl-no">Sl No.</th><th>No.</th><th>Project</th><th>Client</th><th>Done By</th>
             <th class="num">Total Hrs</th><th class="num">Tonnage</th><th>Due Date</th><th>Completed On</th><th>Completed By</th>
-            <th>On Time</th><th>Status</th></tr></thead>
+            <th>On Time</th></tr></thead>
           <tbody id="compRows"></tbody>
         </table>
         <p id="compEmpty" class="empty" hidden>No completed estimations.</p>
       </div>
-      <div class="log-pager">
-        <span id="compTotal" class="sub"></span><span class="spacer"></span>
-        <button type="button" class="btn small" id="compPrev">‹ Newer</button>
-        <span id="compPage" class="sub"></span>
-        <button type="button" class="btn small" id="compNext">Older ›</button>
+      <nav class="pager" id="compPager" aria-label="Pages"></nav>
+    </section>
+  </main>
+
+  <!-- ===================== CALENDAR (due dates) ===================== -->
+  <main id="calendarView" hidden>
+    <section class="card cal-card">
+      <div class="cal-top">
+        <div><button type="button" class="btn small" id="calToday" title="Go to today">Today</button></div>
+        <div class="cal-nav">
+          <button type="button" class="btn small" id="calPrev" title="Previous month" aria-label="Previous month">‹</button>
+          <h3 id="calMonth"></h3>
+          <button type="button" class="btn small" id="calNext" title="Next month" aria-label="Next month">›</button>
+        </div>
+        <label class="cal-goto">Go to date<input type="date" id="calDate" /></label>
+      </div>
+      <div class="cal-legend">
+        <span>Projects due:</span>
+        <span><i class="cal-badge low">1</i>1 – 4</span>
+        <span><i class="cal-badge mid">5</i>5 – 8</span>
+        <span><i class="cal-badge high">9</i>9 or more</span>
+        <span class="hint">Click a day to see its projects below</span>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </section>
+    <section class="card" id="calDayCard">
+      <div class="card-head cal-day-head">
+        <button type="button" class="btn small" id="calDayPrev" title="Previous day" aria-label="Previous day">‹</button>
+        <h3 id="calDayTitle">Due</h3>
+        <button type="button" class="btn small" id="calDayNext" title="Next day" aria-label="Next day">›</button>
+        <span class="cal-summary" id="calDayCount"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th class="num sl-no">Sl No.</th><th>No.</th><th>Project</th><th>Client</th><th>Done By</th>
+            <th class="num">Total Hrs</th><th class="num">Tonnage</th><th>Due</th><th>Status</th></tr></thead>
+          <tbody id="calRows"></tbody>
+        </table>
+        <p id="calEmpty" class="empty" hidden>Nothing is due on this day.</p>
       </div>
     </section>
   </main>
@@ -397,12 +452,7 @@
         </table>
         <p id="notifEmpty" class="empty" hidden>No notifications.</p>
       </div>
-      <div class="log-pager">
-        <span id="notifTotal" class="sub"></span><span class="spacer"></span>
-        <button type="button" class="btn small" id="notifPrev">‹ Newer</button>
-        <span id="notifPage" class="sub"></span>
-        <button type="button" class="btn small" id="notifNext">Older ›</button>
-      </div>
+      <nav class="pager" id="notifPager" aria-label="Pages"></nav>
     </section>
   </main>
 
@@ -426,6 +476,36 @@
         </table>
       </div>
     </section>
+  </main>
+
+  <!-- ===================== BACKUPS (Admin) ===================== -->
+  <main id="backupsView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Backups</h3><span class="spacer"></span>
+        <button type="button" class="btn primary" id="backupNowBtn">⬇ Back up now</button></div>
+      <div class="backup-info" id="backupInfo"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h3>Saved backups</h3>
+        <span class="hint">Restore replaces all estimations, clients, users and notifications with the backup's.
+          A backup of the current data is made automatically first, so a restore can be undone.</span></div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Date &amp; time</th><th>Type</th><th class="num">Size</th><th></th></tr></thead>
+          <tbody id="backupRows"></tbody>
+        </table>
+        <p id="backupEmpty" class="empty" hidden>No backups yet. Click “Back up now” to make one.</p>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h3>Restore from a file</h3>
+        <span class="hint">Use a backup file downloaded from this page (.json.gz), e.g. from another computer.</span></div>
+      <div class="import-row">
+        <input type="file" id="restoreFile" accept=".gz,.json" />
+        <button type="button" class="btn danger" id="restoreFileBtn">Restore from file</button>
+      </div>
+    </section>
+    <p class="save-msg backup-msg" id="backupMsg" role="status"></p>
   </main>
 
   <!-- ===================== ACTIVITY LOG (Admin) ===================== -->
@@ -453,12 +533,7 @@
         </table>
         <p id="logEmpty" class="empty" hidden>No log entries match.</p>
       </div>
-      <div class="log-pager">
-        <span id="logCount" class="sub"></span><span class="spacer"></span>
-        <button type="button" class="btn small" id="logPrev">‹ Newer</button>
-        <span id="logPage" class="sub"></span>
-        <button type="button" class="btn small" id="logNext">Older ›</button>
-      </div>
+      <nav class="pager" id="logPager" aria-label="Pages"></nav>
     </section>
   </main>
 
@@ -473,6 +548,28 @@
       <p class="error" id="pwError" hidden></p>
       <div class="actions"><span class="spacer"></span><button type="submit" class="btn primary">Save password</button></div>
     </form>
+  </dialog>
+
+  <!-- ===================== BULK UPLOAD (Admin) ===================== -->
+  <dialog id="bulkDialog">
+    <div class="dialog-body">
+      <div class="card-head"><h3>Bulk upload estimations</h3><span class="spacer"></span>
+        <button type="button" class="x" id="bulkClose" title="Close">×</button></div>
+      <p class="hint">Excel (.xlsx), one estimation per row, no header needed:
+        <strong>A</strong> = due date (mm/dd/yyyy), <strong>B</strong> = project name, <strong>C</strong> = client name.
+        Clients not in the client list are added. Rows already in the app (same project, client and due date) are skipped.</p>
+      <div class="import-row">
+        <input type="file" id="bulkFile" accept=".xlsx" />
+        <label class="check" title="On a PC set to dd/mm, Excel turns a typed 11/03/2026 (Nov 3) into 11 March. Tick this to read such date cells as mm/dd again. Dates typed as text are always read as mm/dd/yyyy.">
+          <input type="checkbox" id="bulkSwap" checked /> Excel changed some dates to dd/mm (fix them)</label>
+        <button type="button" class="btn primary" id="bulkUploadBtn">Upload</button>
+      </div>
+      <div class="bulk-progress" id="bulkProgress" hidden>
+        <div class="bulk-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="bulk-fill" id="bulkFill"></div></div>
+        <div class="bulk-status"><span id="bulkPhase"></span><span id="bulkPct">0%</span></div>
+      </div>
+      <div id="bulkResult"></div>
+    </div>
   </dialog>
 
   <!-- ===================== REPLY EMAIL ===================== -->
@@ -503,8 +600,8 @@
     </div>
   </dialog>
 
-  <script src="calc.js"></script>
-  <script src="email.js"></script>
-  <script src="app.js"></script>
+  <script src="/calc.js"></script>
+  <script src="/email.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

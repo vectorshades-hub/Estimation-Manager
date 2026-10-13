@@ -57,3 +57,6 @@ desktop.ini
 
 # Claude Code local settings
 .claude/
+
+# Database backups (contain user data and password hashes)
+backups/db/

@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
       Log.aggregate([{ $match: { username: { $nin: [null, ''] } } },
         { $group: { _id: '$username', name: { $last: '$user' } } }, { $sort: { name: 1, _id: 1 } }]),
     ]);
-    res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), pageSize: PAGE_SIZE,
       users: users.map(u => ({ username: u._id, name: u.name || u._id })) });
   } catch (err) {
     next(err);

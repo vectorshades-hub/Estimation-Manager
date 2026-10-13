@@ -32,11 +32,55 @@ const recentOrOpen = () => ({ $or: [
   { completedAt: { $gte: new Date(Date.now() - COMPLETED_LIST_DAYS * 24 * 3600 * 1000) } },
 ] });
 
-// Shared by the list and the Excel export.
-// Query: q (search), status, value ('less' | 'priority'), from / to (estimation date, yyyy-mm-dd),
-// due (due date(s), yyyy-mm-dd, comma-separated for several days)
-async function findFiltered(query, fields) {
-  const { q, status, value, from, to, due } = query;
+const { LESS_VALUE_HOURS } = require('../public/calc');
+const LIST_PAGE_SIZE = 25;
+
+// Shared by the list and the Excel export. Filtering, sorting (see listOrder) and paging all run in MongoDB.
+// Query: q (search), status, value ('less' | 'priority' | 'open' | 'completed'), from / to (due date range, yyyy-mm-dd),
+// due (due date(s), yyyy-mm-dd, comma-separated for several days).
+// With `page` (1-based) only that page is returned: { items, total, page, pages, pageSize }; without it, every match.
+async function findFiltered(query, fields, { page } = {}) {
+  const { value } = query;
+  // Priority client = client name matches a priority client (ignoring case and extra spaces)
+  const prioNames = (await Client.find({ priority: true }).select('name').lean())
+    .map(c => escapeRegex(nameKey(c.name)).replace(/ /g, '\\s+'));
+  const priorityClient = prioNames.length
+    ? { $regexMatch: { input: { $ifNull: ['$clientName', ''] }, regex: `^\\s*(?:${prioNames.join('|')})\\s*$`, options: 'i' } }
+    : false;
+  const valueMatch = {
+    less: { lessValue: true }, priority: { priorityClient: true },
+    completed: { completed: true }, open: { completed: { $ne: true } },
+  }[value];
+  const pipeline = [
+    { $match: buildFilter(query) },
+    { $addFields: { priorityClient } },
+    { $addFields: {
+      lessValue: { $and: [{ $not: ['$priorityClient'] }, { $lt: [{ $ifNull: ['$totalHours', 0] }, LESS_VALUE_HOURS] }] },
+      _done: { $cond: ['$completed', 1, 0] },
+      _due: { $cond: [{ $ifNull: ['$dueDate', false] }, { $dateToString: { date: '$dueDate', format: '%Y-%m-%d' } }, '9999-99-99'] },
+      _prio: { $cond: ['$priorityClient', 0, 1] },
+      _prog: { $cond: [{ $eq: ['$status', 'In Progress'] }, 0, 1] },
+    } },
+    ...(valueMatch ? [{ $match: valueMatch }] : []),
+    { $sort: { _done: 1, _due: 1, _prio: 1, _prog: 1, jobNo: 1, _id: 1 } },
+  ];
+  const collation = { locale: 'en', numericOrdering: true }; // No. "26-9" before "26-10"
+  let ids, total, pageNo = 1, pages = 1;
+  if (page) {
+    total = (await Estimation.aggregate([...pipeline.slice(0, -1), { $count: 'n' }]).collation(collation))[0]?.n || 0;
+    pages = Math.max(1, Math.ceil(total / LIST_PAGE_SIZE));
+    pageNo = Math.min(Math.max(1, parseInt(page, 10) || 1), pages);
+    pipeline.push({ $skip: (pageNo - 1) * LIST_PAGE_SIZE }, { $limit: LIST_PAGE_SIZE });
+  }
+  ids = (await Estimation.aggregate([...pipeline, { $project: { _id: 1 } }]).collation(collation)).map(d => String(d._id));
+  const docs = await Estimation.find({ _id: { $in: ids } }).select(fields);
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const items = (await withFlags(docs)).sort((a, b) => order.get(String(a._id)) - order.get(String(b._id)));
+  return page ? { items, total, page: pageNo, pages, pageSize: LIST_PAGE_SIZE } : items;
+}
+
+function buildFilter(query) {
+  const { q, status, from, to, due } = query;
   const filter = { $and: [recentOrOpen()] };
   if (status) filter.status = status;
   if (q) {
@@ -44,21 +88,17 @@ async function findFiltered(query, fields) {
     filter.$or = [{ jobNo: rx }, { projectName: rx }, { clientName: rx }, { doneBy: rx }, { scope: rx }];
   }
   const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
-  if (isDate(from) || isDate(to)) {
-    filter.date = {};
-    if (isDate(from)) filter.date.$gte = new Date(`${from}T00:00:00.000Z`);
-    if (isDate(to)) filter.date.$lte = new Date(`${to}T23:59:59.999Z`);
+  if (isDate(from) || isDate(to)) { // due date range (due dates are stored as UTC midnight of the day)
+    const range = {};
+    if (isDate(from)) range.$gte = new Date(`${from}T00:00:00.000Z`);
+    if (isDate(to)) range.$lte = new Date(`${to}T23:59:59.999Z`);
+    filter.$and.push({ dueDate: range });
   }
   const dueDays = String(due || '').split(',').filter(isDate);
   if (dueDays.length) {
     filter.$and.push({ $or: dueDays.map(d => ({ dueDate: { $gte: new Date(`${d}T00:00:00.000Z`), $lte: new Date(`${d}T23:59:59.999Z`) } })) });
   }
-  let items = await withFlags(await Estimation.find(filter).select(fields).sort('-createdAt'));
-  if (value === 'less') items = items.filter(e => e.lessValue);
-  if (value === 'priority') items = items.filter(e => e.priorityClient);
-  if (value === 'completed') items = items.filter(e => e.completed);
-  if (value === 'open') items = items.filter(e => !e.completed);
-  return items.sort(listOrder);
+  return filter;
 }
 
 // List order: open estimations first, completed ones at the bottom. Within each group: by due day (earliest first,
@@ -81,15 +121,15 @@ function describeFilters({ q, status, value, from, to, due }) {
     value === 'open' && 'Not completed only',
     value === 'completed' && `Completed only (last ${COMPLETED_LIST_DAYS} days)`,
     due && `Due: ${String(due).split(',').join(', ')}`,
-    from && `Date from: ${from}`,
-    to && `Date to: ${to}`,
+    from && `Due from: ${from}`,
+    to && `Due to: ${to}`,
   ].filter(Boolean).join(';  ');
 }
 
-// List with optional filters
+// List with optional filters, LIST_PAGE_SIZE per page (?page=, 1-based)
 router.get('/', async (req, res, next) => {
   try {
-    res.json(await findFiltered(req.query, LIST_FIELDS));
+    res.json(await findFiltered(req.query, LIST_FIELDS, { page: req.query.page || 1 }));
   } catch (err) {
     next(err);
   }
@@ -97,11 +137,10 @@ router.get('/', async (req, res, next) => {
 
 // Completed log: every completed estimation, most recently completed first (all users).
 // Query: q (search), from / to (completed date, yyyy-mm-dd, viewer's local days), tz (getTimezoneOffset), page (1-based)
-const COMPLETED_PAGE_SIZE = 100;
+const COMPLETED_PAGE_SIZE = 25;
 router.get('/completed', async (req, res, next) => {
   try {
     const { q, from, to } = req.query;
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const filter = { completed: true };
     if (q) {
       const rx = new RegExp(escapeRegex(q), 'i');
@@ -114,13 +153,30 @@ router.get('/completed', async (req, res, next) => {
       if (isDate(from)) filter.completedAt.$gte = new Date(new Date(`${from}T00:00:00.000Z`).getTime() + tz * 60000);
       if (isDate(to)) filter.completedAt.$lte = new Date(new Date(`${to}T23:59:59.999Z`).getTime() + tz * 60000);
     }
-    const [docs, total] = await Promise.all([
-      Estimation.find(filter).select(LIST_FIELDS).sort({ completedAt: -1, _id: -1 })
-        .skip((page - 1) * COMPLETED_PAGE_SIZE).limit(COMPLETED_PAGE_SIZE),
-      Estimation.countDocuments(filter),
-    ]);
-    res.json({ items: await withFlags(docs), total, page, pages: Math.max(1, Math.ceil(total / COMPLETED_PAGE_SIZE)),
+    const total = await Estimation.countDocuments(filter);
+    const pages = Math.max(1, Math.ceil(total / COMPLETED_PAGE_SIZE));
+    const page = Math.min(Math.max(1, parseInt(req.query.page, 10) || 1), pages); // past the end -> last page
+    const docs = await Estimation.find(filter).select(LIST_FIELDS).sort({ completedAt: -1, _id: -1 })
+      .skip((page - 1) * COMPLETED_PAGE_SIZE).limit(COMPLETED_PAGE_SIZE);
+    res.json({ items: await withFlags(docs), total, page, pages, pageSize: COMPLETED_PAGE_SIZE,
       listDays: COMPLETED_LIST_DAYS });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Calendar: every estimation (completed ones too) due between from and to (yyyy-mm-dd, inclusive).
+// Due dates are stored as UTC midnight of the chosen day.
+const CALENDAR_MAX_DAYS = 62;
+router.get('/calendar', async (req, res, next) => {
+  try {
+    const { from, to } = req.query;
+    const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    if (!isDate(from) || !isDate(to)) return res.status(400).json({ error: 'from and to dates (yyyy-mm-dd) are required' });
+    const start = new Date(`${from}T00:00:00.000Z`), end = new Date(`${to}T23:59:59.999Z`);
+    if (end < start || end - start > CALENDAR_MAX_DAYS * 86400000) return res.status(400).json({ error: `Pick a range of up to ${CALENDAR_MAX_DAYS} days` });
+    const docs = await Estimation.find({ dueDate: { $gte: start, $lte: end } }).select(LIST_FIELDS);
+    res.json((await withFlags(docs)).sort(listOrder));
   } catch (err) {
     next(err);
   }
@@ -187,7 +243,29 @@ router.get('/:id', async (req, res, next) => {
 });
 
 const safeName = s => s.replace(/[\\/:*?"<>|]/g, '-');
-const chartFileName = est => safeName(`${[est.jobNo, est.projectName].filter(Boolean).join(' ')}_output.xlsx`);
+const chartFileName = (est, pageName) => safeName(`${[est.jobNo, est.projectName, pageName].filter(Boolean).join(' ')}_output.xlsx`);
+const zipName = (est, what) => safeName(`${[est.jobNo, est.projectName].filter(Boolean).join(' - ')} - ${what}.zip`);
+
+// One estimation per chart page (for the "separate files" downloads): that page only, named after it
+const perPage = est => (est.pages || []).map((page, i) => ({ pageName: (page.name || '').trim() || `Page ${i + 1}`, est: { ...est, pages: [page] } }));
+
+// Zip with the given { name: buffer } files. Repeated names (pages with the same name) get " (2)", " (3)"…
+async function sendZip(res, name, files) {
+  const zip = new JSZip();
+  // Zip entries store wall-clock time; JSZip writes UTC, so shift to local time
+  const now = new Date();
+  const date = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  const used = new Set();
+  for (let [file, buf] of files) {
+    for (let n = 2; used.has(file.toLowerCase()); n++) file = file.replace(/( \(\d+\))?(\.\w+)$/, ` (${n})$2`);
+    used.add(file.toLowerCase());
+    zip.file(file, buf, { date });
+  }
+  const out = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.send(out);
+}
 
 // "Ready for Submittal": Excel estimation chart + Word proposal in one zip
 router.get('/:id/package', async (req, res, next) => {
@@ -196,28 +274,26 @@ router.get('/:id/package', async (req, res, next) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const est = doc.toObject({ flattenMaps: true });
     const wb = await buildWorkbook(est);
-    const zip = new JSZip();
-    // Zip entries store wall-clock time; JSZip writes UTC, so shift to local time
-    const now = new Date();
-    const date = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    zip.file(chartFileName(est), await wb.xlsx.writeBuffer(), { date });
-    zip.file(proposalFileName(est), await buildProposal(est), { date });
-    const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
-    const name = safeName(`${[est.jobNo, est.projectName].filter(Boolean).join(' - ')} - Submittal.zip`);
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
-    res.send(buf);
+    await sendZip(res, zipName(est, 'Submittal'), [
+      [chartFileName(est), await wb.xlsx.writeBuffer()],
+      [proposalFileName(est), await buildProposal(est)],
+    ]);
   } catch (err) {
     next(err);
   }
 });
 
-// Download the estimation chart as .xlsx
+// Download the estimation chart as .xlsx (?separate=1: one .xlsx per chart page, in a zip)
 router.get('/:id/excel', async (req, res, next) => {
   try {
     const doc = await Estimation.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const est = doc.toObject({ flattenMaps: true });
+    if (req.query.separate) {
+      const files = [];
+      for (const p of perPage(est)) files.push([chartFileName(est, p.pageName), await (await buildWorkbook(p.est)).xlsx.writeBuffer()]);
+      return await sendZip(res, zipName(est, 'Excel by page'), files);
+    }
     const wb = await buildWorkbook(est);
     const name = chartFileName(est);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -229,12 +305,17 @@ router.get('/:id/excel', async (req, res, next) => {
   }
 });
 
-// Download the proposal as a Word document
+// Download the proposal as a Word document (?separate=1: one proposal per chart page, in a zip)
 router.get('/:id/proposal', async (req, res, next) => {
   try {
     const doc = await Estimation.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const est = doc.toObject({ flattenMaps: true });
+    if (req.query.separate) {
+      const files = [];
+      for (const p of perPage(est)) files.push([proposalFileName(est, p.pageName), await buildProposal(p.est)]);
+      return await sendZip(res, zipName(est, 'Proposals by page'), files);
+    }
     const buf = await buildProposal(est);
     const name = proposalFileName(est);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -257,9 +338,123 @@ function checkStatusChange(req, from, to) {
   }
 }
 
+// ---------- Bulk upload (Admin) ----------
+// .xlsx with one estimation per row, no header needed: A = due date (mm/dd/yyyy), B = project name, C = client name.
+// Unknown clients are added to the client list. Rows already in the app (same project, client and due date) are skipped.
+const ExcelJS = require('exceljs');
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => d.toISOString().slice(0, 10);
+
+function cellValue(cell) {
+  const v = cell.value;
+  return v && typeof v === 'object' && 'formula' in v ? v.result : v;
+}
+const cellText = cell => String(cell.text ?? '').trim().replace(/\s+/g, ' ');
+
+// Due date as UTC midnight. Text is read as mm/dd/yyyy. A real date cell is used as is, unless swapDateCells:
+// on a PC set to dd/mm, Excel turns a typed "11/03/2026" (meant as Nov 3) into 11 March, so day and month are swapped back.
+function parseDue(cell, swapDateCells) {
+  let v = cellValue(cell);
+  if (typeof v === 'number' && v > 0) v = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));
+  let y, m, d, fromDateCell = false;
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    [y, m, d, fromDateCell] = [v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate(), true];
+    if (swapDateCells && d <= 12) [m, d] = [d, m];
+  } else {
+    const s = String(v ?? '').trim();
+    let p;
+    if ((p = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/))) [m, d, y] = [+p[1], +p[2], +p[3]];
+    else if ((p = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) [y, m, d] = [+p[1], +p[2], +p[3]];
+    else return null;
+    if (y < 100) y += 2000;
+  }
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null; // e.g. 13/40/2026
+  return { date, fromDateCell };
+}
+
+router.post('/bulk', requireRole('admin'), express.raw({ type: () => true, limit: '10mb' }), async (req, res, next) => {
+  let streaming = false;
+  try {
+    if (!req.body?.length) return res.status(400).json({ error: 'No file received' });
+    if (!(req.body[0] === 0x50 && req.body[1] === 0x4b)) return res.status(400).json({ error: 'Please upload an Excel (.xlsx) file' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.body);
+    const ws = wb.worksheets.find(s => s.state !== 'hidden' && s.actualRowCount > 0);
+    if (!ws) return res.status(400).json({ error: 'The file is empty' });
+    const swap = req.query.swapDateCells === '1';
+
+    // Read and check every row first
+    const rows = [], errors = [];
+    ws.eachRow({ includeEmpty: false }, (row, n) => {
+      const [dueCell, projCell, clientCell] = [1, 2, 3].map(i => row.getCell(i));
+      const projectName = cellText(projCell), clientName = cellText(clientCell);
+      if (!cellText(dueCell) && !projectName && !clientName) return;
+      const due = parseDue(dueCell, swap);
+      if (!due && rows.length === 0 && errors.length === 0 && /due|date|project|client/i.test(cellText(dueCell) + projectName)) return; // header row
+      const problems = [!due && `due date "${cellText(dueCell)}" is not a valid mm/dd/yyyy date`,
+        !projectName && 'project name is missing', !clientName && 'client name is missing'].filter(Boolean);
+      if (problems.length) errors.push({ row: n, projectName, reason: problems.join('; ') });
+      else rows.push({ row: n, dueDate: due.date, fromDateCell: due.fromDateCell, projectName, clientName });
+    });
+    if (!rows.length && !errors.length) return res.status(400).json({ error: 'No rows found in the file' });
+
+    // From here on, progress is streamed as one JSON object per line
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    streaming = true;
+    const send = o => res.write(JSON.stringify(o) + '\n');
+    const total = rows.length;
+    send({ type: 'start', total, invalid: errors.length });
+
+    const clients = new Map((await Client.find().select('name nameKey').lean()).map(c => [c.nameKey, c.name]));
+    const dupKey = (p, c, d) => `${nameKey(p)}|${nameKey(c)}|${ymd(d)}`;
+    const days = [...new Set(rows.map(r => r.dueDate.getTime()))].map(t => new Date(t));
+    const existing = new Set((await Estimation.find({ dueDate: { $in: days } }).select('projectName clientName dueDate').lean())
+      .map(e => dupKey(e.projectName, e.clientName, e.dueDate)));
+
+    const added = [], skipped = [], newClients = [];
+    let lastPct = -1;
+    for (let i = 0; i < total; i++) {
+      const r = rows[i];
+      try {
+        const ck = nameKey(r.clientName);
+        if (!clients.has(ck)) {
+          await Client.ensure(r.clientName);
+          clients.set(ck, r.clientName.replace(/\s+/g, ' '));
+          newClients.push(r.clientName);
+        }
+        const clientName = clients.get(ck); // spelled as in the client list
+        const key = dupKey(r.projectName, clientName, r.dueDate);
+        if (existing.has(key)) {
+          skipped.push({ row: r.row, projectName: r.projectName, reason: 'already in the app (same project, client and due date)' });
+        } else {
+          await Estimation.create({ projectName: r.projectName, clientName, dueDate: r.dueDate,
+            createdBy: req.user.name || undefined, updatedBy: req.user.name || undefined });
+          existing.add(key);
+          added.push({ row: r.row, projectName: r.projectName, clientName, dueDate: ymd(r.dueDate), fromDateCell: r.fromDateCell });
+        }
+      } catch (err) {
+        errors.push({ row: r.row, projectName: r.projectName, reason: err.message });
+      }
+      const pct = Math.floor(((i + 1) / total) * 100);
+      if (pct !== lastPct || i === total - 1) { lastPct = pct; send({ type: 'progress', done: i + 1, total }); }
+    }
+    errors.sort((a, b) => a.row - b.row);
+    send({ type: 'done', added, skipped, errors, newClients, swapDateCells: swap });
+    res.end();
+  } catch (err) {
+    if (!streaming) return next(err);
+    console.error(err);
+    res.end(JSON.stringify({ type: 'error', error: 'Server error — some rows may have been added already' }) + '\n');
+  }
+});
+
 router.post('/', async (req, res, next) => {
   try {
-    checkStatusChange(req, 'Received', req.body.status);
+    checkStatusChange(req, 'Yet To Start', req.body.status);
     const doc = await Estimation.create({ ...clean(req.body), createdBy: req.user.name || undefined, updatedBy: req.user.name || undefined,
       ...(req.body.completed ? { completedBy: req.user.name || undefined } : {}) });
     await Client.ensure(doc.clientName);

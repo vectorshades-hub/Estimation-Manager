@@ -8,6 +8,8 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const logRoutes = require('./routes/logs');
 const notificationRoutes = require('./routes/notifications');
+const backupRoutes = require('./routes/backups');
+const backup = require('./lib/backup');
 const requestLog = require('./lib/requestLog');
 const { authenticate, requireRole, authEnabled } = require('./lib/auth');
 
@@ -29,6 +31,12 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/notifications', requireRole('team_leader'), notificationRoutes);
 app.use('/api/users', requireRole('admin'), userRoutes);
 app.use('/api/logs', requireRole('admin'), logRoutes);
+app.use('/api/backups', requireRole('admin'), backupRoutes);
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+// App pages (/, /completed, /edit/<id>, …) are all served by index.html; the browser script shows the right page.
+// Paths with a file extension are missing static files and stay 404.
+app.get(/^\/(?!.*\.\w+$)/, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use((err, req, res, next) => {
   if (err.name === 'ValidationError') {
@@ -61,6 +69,8 @@ mongoose
     // Make sure every client used in an estimation is in the client list
     for (const name of await require('./models/Estimation').distinct('clientName')) await Client.ensure(name);
     app.listen(PORT, () => console.log(`Estimation Manager running at http://localhost:${PORT}`));
+    // Weekly automatic backup (Sunday 06:00); makes up a missed one now
+    backup.startSchedule().catch(err => console.error('Backup schedule:', err.message));
   })
   .catch(err => {
     console.error('MongoDB connection failed:', err.message);

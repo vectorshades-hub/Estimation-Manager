@@ -1,5 +1,5 @@
 const API = '/api/estimations';
-const STATUSES = ['Received', 'In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
+const STATUSES = ['Yet To Start','In Progress', 'Submitted', 'Won', 'Lost', 'On Hold', 'No bid placed - Less Value', 'No bid placed - Missing details'];
 // CSS class for a status badge, e.g. 'In Progress' -> 'In-Progress', 'No bid placed - Less Value' -> 'No-bid-placed-Less-Value'
 const statusClass = s => String(s || '').replace(/[^A-Za-z0-9]+/g, '-');
 const { MAX_SHEETS, DEFAULT_HRS_PER_TON, LESS_VALUE_HOURS, isLessValueJob, ITEM_TEMPLATE, DWG_TYPES, normalizeItems, compute,
@@ -125,8 +125,8 @@ $('#logoutBtn').onclick = async () => {
   dirty = false;
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
   // Start the next sign-in on the Estimations list, not on the page this user was last on
-  history.replaceState(null, '', '#/');
-  lastHash = location.hash;
+  history.replaceState(null, '', '/');
+  lastPath = location.pathname;
   showAuth(false);
 };
 
@@ -178,7 +178,7 @@ function listParams() {
 const TRASH_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 // Status as a drop-down styled like the status badge: change it right from the list.
-// The last option, "Completed", marks the estimation complete; on a completed one, picking a status un-completes it.
+// The last option, "Completed" (shown as "Sent for Bid"), marks the estimation complete; on a completed one, picking a status un-completes it.
 // Won / Lost can only be set or cleared by Team Leaders and above (the server checks this too).
 const DECIDED = ['Won', 'Lost'];
 const COMPLETED_OPT = 'Completed';
@@ -191,7 +191,7 @@ function statusSelect(e) {
       data-label="${esc(estLabel(e))}"
       title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} (status: ${esc(e.status)}) — pick a status to mark it not complete` : 'Change status'}">
       ${STATUSES.map(s => `<option value="${esc(s)}" ${s === shown ? 'selected' : ''} ${blocked(s) ? 'disabled' : ''}>${esc(s)}</option>`).join('')}
-      <option value="${COMPLETED_OPT}" ${e.completed ? 'selected' : ''}>✓ Completed</option>
+      <option value="${COMPLETED_OPT}" ${e.completed ? 'selected' : ''}>✓ Sent for Bid</option>
     </select>`;
 }
 
@@ -207,19 +207,57 @@ function fitStatusSelects(root) {
   });
 }
 
-async function loadList() {
+// Shared pager: "Showing 26–50 of 120 estimations" + « ‹ 1 … 4 [5] 6 … 12 › »
+// r = { page, pages, total, pageSize } from the server; goTo(page) loads that page.
+function renderPager(el, r, noun, goTo, extra = '') {
+  if (typeof el === 'string') el = $(el);
+  el.hidden = !r.total;
+  if (!r.total) { el.innerHTML = ''; return; }
+  const first = (r.page - 1) * r.pageSize + 1, last = Math.min(r.total, r.page * r.pageSize);
+  const nums = [...new Set([1, r.page - 1, r.page, r.page + 1, r.pages])].filter(p => p >= 1 && p <= r.pages).sort((a, b) => a - b);
+  const btn = (p, label, title, cls = '') => `<button type="button" class="pager-btn ${cls}" data-page="${p}" title="${title}" aria-label="${title}"
+    ${p < 1 || p > r.pages || p === r.page ? 'disabled' : ''}${p === r.page && cls === 'num' ? ' aria-current="page"' : ''}>${label}</button>`;
+  let pages = '';
+  nums.forEach((p, i) => {
+    if (i && p - nums[i - 1] > 1) pages += '<span class="pager-gap">…</span>';
+    pages += btn(p, p, `Page ${p}`, `num${p === r.page ? ' current' : ''}`);
+  });
+  el.innerHTML = `<span class="pager-info">Showing <strong>${first.toLocaleString()}–${last.toLocaleString()}</strong> of
+      <strong>${r.total.toLocaleString()}</strong> ${noun}${extra}</span>
+    ${r.pages > 1 ? `<span class="pager-controls">
+      ${btn(1, '«', 'First page', 'edge')}${btn(r.page - 1, '‹ Prev', 'Previous page', 'step')}
+      ${pages}
+      ${btn(r.page + 1, 'Next ›', 'Next page', 'step')}${btn(r.pages, '»', 'Last page', 'edge')}</span>` : ''}`;
+  el.onclick = ev => {
+    const b = ev.target.closest('button[data-page]');
+    if (b && !b.disabled) Promise.resolve(goTo(+b.dataset.page)).catch(err => { if (!err.silent) alert(err.message); });
+  };
+}
+
+// Main list paging (25 per page, from the server). Changing a filter goes back to page 1;
+// reloading after an edit stays on the current page.
+let listPage = 1, listFilterKey = null;
+async function loadList(page = listPage) {
   const params = listParams();
-  const [items, s] = await Promise.all([api(`${API}?${params}`), api(`${API}/stats/summary`)]);
-  $('#exportBtn').textContent = `⬇ Export to Excel (${items.length})`;
-  $('#clearFilters').hidden = !params.toString();
+  const key = params.toString();
+  if (key !== listFilterKey) { page = 1; listFilterKey = key; }
+  const query = new URLSearchParams(params);
+  query.set('page', page);
+  const [r, s] = await Promise.all([api(`${API}?${query}`), api(`${API}/stats/summary`)]);
+  const items = r.items;
+  listPage = r.page;
+  $('#exportBtn').textContent = `⬇ Export to Excel (${r.total})`;
+  $('#clearFilters').hidden = !key;
+  renderPager('#listPager', r, r.total === 1 ? 'estimation' : 'estimations', p => loadList(p).then(() => $('#listView .table-wrap').scrollIntoView({ block: 'start' })));
+  const first = (r.page - 1) * r.pageSize;
 
   $('#rows').innerHTML = items
     .map((e, i) => {
       const due = dueInfo(e.dueDate, e.status, e.completed);
       const won = e.status === 'Won';
       return `<tr class="row-link ${won ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="${e.completed ? `Completed${e.completedAt ? ' on ' + fmtDate(e.completedAt) : ''} — click to open` : 'Click to open'}">
-        <td class="num sl-no">${i + 1}</td>
-        <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
+        <td class="num sl-no">${first + i + 1}</td>
+        <td><a href="/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
         <td>${fmtDate(e.date)}</td>
         <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
         <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
@@ -250,7 +288,7 @@ async function loadList() {
 
   const won = s.byStatus.Won || { count: 0, tonnage: 0 };
   const lost = s.byStatus.Lost?.count || 0;
-  const active = ['Received', 'In Progress'].reduce((n, k) => n + (s.byStatus[k]?.count || 0), 0);
+  const active = ['Yet To Start', 'In Progress'].reduce((n, k) => n + (s.byStatus[k]?.count || 0), 0);
   const cards = [
     ['Total Estimations', s.count],
     ['Total Tonnage', fmt(s.tonnage, 1) + ' t'],
@@ -270,9 +308,9 @@ $('#rows').addEventListener('click', async ev => {
   if (!ev.target.closest('a, button')) {
     const row = ev.target.closest('tr[data-open-id]');
     if (!row || getSelection().toString()) return; // don't hijack text selection
-    const url = `#/edit/${row.dataset.openId}`;
+    const url = `/edit/${row.dataset.openId}`;
     if (ev.ctrlKey || ev.metaKey) window.open(url, '_blank');
-    else location.hash = url;
+    else go(url);
     return;
   }
   const d = ev.target.closest('button, a').dataset; // icon buttons hold an SVG, so the click target may be inside it
@@ -299,9 +337,9 @@ $('#rows').addEventListener('change', async ev => {
   const to = sel.value;
   // "Completed" is not a status: it sets the completed flag (the status itself is kept)
   const [question, body] = to === COMPLETED_OPT
-    ? [`Mark ${label} as completed?`, { completed: true }]
+    ? [`Mark ${label} as Sent for Bid?`, { completed: true }]
     : orig === COMPLETED_OPT
-      ? [`Mark ${label} as NOT complete and set its status to "${to}"?`, { completed: false, status: to }]
+      ? [`Mark ${label} as NOT Sent for Bid and set its status to "${to}"?`, { completed: false, status: to }]
       : [`Change the status of ${label} from "${orig}" to "${to}"?`, { status: to }];
   if (!confirm(question)) { sel.value = orig; fitStatusSelects(sel.parentNode); return; }
   sel.disabled = true;
@@ -326,7 +364,7 @@ const DEFAULT_CONTACT = { name: 'Lee Luck', email: 'lee.luck@vectorshades.com' }
 
 function blankEstimation(jobNo) {
   return {
-    jobNo, projectName: '', clientName: '', date: today(), dueDate: today(), doneBy: '', status: 'Received',
+    jobNo, projectName: '', clientName: '', date: today(), dueDate: today(), doneBy: '', status: 'Yet To Start',
     contactPerson: DEFAULT_CONTACT.name, contactEmail: DEFAULT_CONTACT.email,
     pages: [newPage('Page 1')],
     exclusions: [],
@@ -415,6 +453,7 @@ function fillForm() {
     else if (el.name === 'deliverables') el.checked = (cur.deliverables || []).includes(el.value);
     else if (el.type === 'date') el.value = toInputDate(cur[el.name]);
     else if (el.name === 'connectionDesign') el.value = cur.connectionDesign || 'No';
+    else if (el.name === 'status') el.value = cur.completed ? COMPLETED_OPT : cur.status ?? '';
     else el.value = cur[el.name] ?? '';
   }
   $('#editorTitle').textContent = cur._id ? estLabel(cur) : 'New Estimation';
@@ -422,6 +461,7 @@ function fillForm() {
   $('#emailBtn').disabled = !cur._id;
   $('#proposalBtn').disabled = !cur._id;
   $('#packageBtn').disabled = !cur._id;
+  updateSplitButtons();
   const lead = can('team_leader');
   [...$('#statusSelect').options].forEach(o => { o.disabled = !lead && ['Won', 'Lost'].includes(o.value) && o.value !== cur.status; });
   $('#statusSelect').disabled = !lead && ['Won', 'Lost'].includes(cur.status);
@@ -484,6 +524,7 @@ function switchPage(i) {
   activePage = i;
   renderPage();
   updateComputed();
+  updateSplitButtons(); // pages may have been added / deleted
 }
 
 function renamePage(i = activePage) {
@@ -580,27 +621,25 @@ function syncAutoDescriptions(page) {
   const counts = Object.fromEntries(page.items.map(it => [it.key, it.counts]));
   const split = !!page.splitSheets;
   for (const [listKey, groups] of Object.entries(AUTO_DESC_GROUPS)) {
-    // What the chart says now. Normal: one line per item for the whole page, qty = total over all sheets,
-    // notes = the sheets it appears on ("S001,S002"). Split: one line per item per sheet, notes = that sheet.
+    // What the chart says now. Normal: one line per item for the whole page, qty = total over all sheets.
+    // Split: one line per item per sheet. Notes are not fetched: they stay as the user typed them.
     const wanted = new Map();
     for (const g of groups) {
       let qty = 0;
-      const sheets = [];
       page.sheets.forEach((sheet, c) => {
         const q = g.keys.reduce((a, k) => a + (+(counts[k] || [])[c] || 0), 0);
         if (!q) return;
-        const name = sheet || `Sheet ${c + 1}`;
-        if (split) wanted.set(`${g.name}|${c}`, { qty: String(q), notes: name, name: g.name });
-        qty += q; sheets.push(name);
+        if (split) wanted.set(`${g.name}|${c}`, { qty: String(q), name: g.name });
+        qty += q;
       });
-      if (qty && !split) wanted.set(g.name, { qty: String(qty), notes: sheets.join(','), name: g.name });
+      if (qty && !split) wanted.set(g.name, { qty: String(qty), name: g.name });
     }
     // Update generated lines where they are (keeps any drag-and-drop order), drop ones no longer in the chart.
     // A line from the other mode is converted in place, keeping wording the user changed:
     // split on -> the item's line becomes its per-sheet lines; split off -> per-sheet lines fold into one line.
     const list = [];
     const placed = new Set();
-    const put = (d, key) => { const w = wanted.get(key); list.push({ ...d, qty: w.qty, notes: w.notes, autoKey: key }); placed.add(key); };
+    const put = (d, key) => { list.push({ ...d, qty: wanted.get(key).qty, autoKey: key }); placed.add(key); };
     for (const d of page[listKey] || []) {
       if (!d.autoKey) { list.push(d); continue; }
       const [base, col] = d.autoKey.split('|');
@@ -609,12 +648,14 @@ function syncAutoDescriptions(page) {
         for (const key of wanted.keys()) if (key.startsWith(`${base}|`) && !placed.has(key)) put(d, key);
       } else if (!split && col !== undefined && wanted.has(base) && !placed.has(base)) put(d, base);
     }
-    // New generated lines go after the last generated line (or at the top)
+    // New generated lines go after the last generated line (or at the top) — unless a heading was added after
+    // that line: then they go under the newest heading, at the end of its section
     while (list.length && isBlankDesc(list[list.length - 1])) list.pop(); // spare blank rows are re-added below
-    let at = 0;
-    list.forEach((d, i) => { if (d.autoKey) at = i + 1; });
+    let at = 0, lastHeading = -1;
+    list.forEach((d, i) => { if (d.autoKey) at = i + 1; if (d.heading) lastHeading = i; });
+    if (lastHeading >= at) at = list.length;
     const added = [...wanted].filter(([key]) => !placed.has(key))
-      .map(([autoKey, w]) => ({ qty: w.qty, description: w.name, notes: w.notes, heading: false, autoKey }));
+      .map(([autoKey, w]) => ({ qty: w.qty, description: w.name, notes: '', heading: false, autoKey }));
     list.splice(at, 0, ...added);
     page[listKey] = list;
   }
@@ -683,7 +724,7 @@ $('#autoDescToggle').addEventListener('change', ev => {
   const page = pg();
   const on = ev.target.checked;
   const msg = on
-    ? 'Turn auto fetch ON?\n\nDescription lines will be filled from the estimation chart. Existing lines with the same description will have their quantity and notes replaced by the chart values, and repeated copies of them are removed.'
+    ? 'Turn auto fetch ON?\n\nDescription lines will be filled from the estimation chart. Existing lines with the same description will have their quantity replaced by the chart value (notes are kept), and repeated copies of them are removed.'
     : 'Turn auto fetch OFF?\n\nLines already fetched from the chart are kept as normal editable lines, and chart changes will no longer update them.';
   if (!confirm(msg)) { ev.target.checked = !on; return; }
   page.autoDesc = on;
@@ -862,6 +903,9 @@ form.addEventListener('input', ev => {
     if (el.name === 'exclusions' || el.name === 'proposalExclusions') cur[el.name] = el.value.split('\n').map(s => s.trim()).filter(Boolean);
     else if (el.name === 'deliverables') cur.deliverables = [...form.querySelectorAll('input[name=deliverables]:checked')].map(i => i.value);
     else if (el.type === 'number') cur[el.name] = el.value === '' ? null : +el.value;
+    // "Sent for Bid" is not a status: it sets the completed flag and keeps the status; any other pick un-completes it
+    else if (el.name === 'status' && el.value === COMPLETED_OPT) cur.completed = true;
+    else if (el.name === 'status') { cur.completed = false; cur.status = el.value; }
     else cur[el.name] = el.value;
     if (el.name === 'dueDate' || el.name === 'status') updateDueInfo();
     if (el.name === 'clientName') updateClientFlags();
@@ -1066,10 +1110,12 @@ form.addEventListener('click', ev => {
     dirty = true;
     renderChart(); updateComputed();
   } else if (d.add) {
-    pg()[d.add].push({ qty: '', description: '', notes: '', heading: false });
+    // "+ Add heading" adds the line with Head. ticked and puts the cursor in its description
+    const heading = d.heading === '1';
+    pg()[d.add].push({ qty: '', description: '', notes: '', heading });
     dirty = true;
     renderDesc(d.add);
-    $(`#${d.add} tbody tr:last-child input[data-f="qty"]`)?.focus();
+    $(`#${d.add} tbody tr:last-child input[data-f="${heading ? 'description' : 'qty'}"]`)?.focus();
   } else if (d.delLink !== undefined) {
     cur.links.splice(+d.delLink, 1);
     dirty = true;
@@ -1152,12 +1198,13 @@ async function doSave({ auto = false } = {}) {
     renderPageTabs();
     dirty = false;
     $('#saveMsg').textContent = `Saved ${new Date().toLocaleTimeString()}`;
-    if (wasNew) { history.replaceState(null, '', `#/edit/${cur._id}`); lastHash = location.hash; }
+    if (wasNew) { history.replaceState(null, '', `/edit/${cur._id}`); lastPath = location.pathname; }
     $('#editorTitle').textContent = estLabel(cur);
     $('#excelBtn').disabled = false;
     $('#emailBtn').disabled = false;
     $('#proposalBtn').disabled = false;
     $('#packageBtn').disabled = false;
+    updateSplitButtons();
     loadClientOptions().then(() => updateClientFlags()); // a newly typed client is now in the list
     renderLinks();
     return true;
@@ -1181,14 +1228,37 @@ $('#packageBtn').onclick = async () => {
   if (dirty && !(await save())) return;
   location.href = `${API}/${cur._id}/package`;
 };
-$('#proposalBtn').onclick = async () => {
+async function download(kind, separate = false) {
   if (dirty && !(await save())) return;
-  location.href = `${API}/${cur._id}/proposal`;
-};
-$('#excelBtn').onclick = async () => {
-  if (dirty && !(await save())) return;
-  location.href = `${API}/${cur._id}/excel`;
-};
+  location.href = `${API}/${cur._id}/${kind}${separate ? '?separate=1' : ''}`;
+}
+$('#proposalBtn').onclick = () => download('proposal');
+$('#excelBtn').onclick = () => download('excel');
+
+// ▾ menus next to Download Excel / Proposal: one file for all pages, or one file per page in a zip
+const closeSplitMenus = () => document.querySelectorAll('.split-menu').forEach(m => { m.hidden = true; });
+document.addEventListener('click', ev => {
+  const caret = ev.target.closest('[data-menu]');
+  const item = ev.target.closest('[data-download]');
+  if (caret) {
+    const menu = $(`#${caret.dataset.menu}`);
+    const open = menu.hidden;
+    closeSplitMenus();
+    menu.hidden = !open;
+    return;
+  }
+  closeSplitMenus();
+  if (item) download(item.dataset.download, !!item.dataset.separate);
+});
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSplitMenus(); });
+
+// The "separate files" option only makes sense with more than one chart page
+function updateSplitButtons() {
+  const several = (cur?.pages?.length || 0) > 1;
+  ['#excelSplit', '#proposalSplit'].forEach(s => $(s).classList.toggle('single', !several));
+  document.querySelectorAll('.split-caret').forEach(b => { b.disabled = !cur?._id; });
+  if (!several) closeSplitMenus();
+}
 document.addEventListener('keydown', ev => {
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 's' && !$('#editorView').hidden) { ev.preventDefault(); save(); }
 });
@@ -1439,10 +1509,7 @@ async function loadLog(page = logPage) {
         : `<span class="log-err" title="${esc(l.error)}">✕ ${l.status}</span>${l.error ? `<div class="sub log-error-msg">${esc(l.error)}</div>` : ''}`}</td>
     </tr>`).join('');
   $('#logEmpty').hidden = r.items.length > 0;
-  $('#logCount').textContent = `${r.total.toLocaleString()} entr${r.total === 1 ? 'y' : 'ies'}`;
-  $('#logPage').textContent = `Page ${r.page} of ${r.pages}`;
-  $('#logPrev').disabled = r.page <= 1;
-  $('#logNext').disabled = r.page >= r.pages;
+  renderPager('#logPager', r, r.total === 1 ? 'entry' : 'entries', p => loadLog(p).then(() => window.scrollTo(0, 0)));
 }
 
 ['#logUser', '#logResult', '#logFrom', '#logTo'].forEach(sel => { $(sel).onchange = () => loadLog(1); });
@@ -1453,8 +1520,6 @@ $('#logClear').onclick = () => {
   loadLog(1);
 };
 $('#logRefresh').onclick = () => loadLog(1);
-$('#logPrev').onclick = () => loadLog(logPage - 1);
-$('#logNext').onclick = () => loadLog(logPage + 1);
 
 // =====================================================================
 // COMPLETED LOG (all users)
@@ -1481,10 +1546,10 @@ async function loadCompleted(page = compPage) {
   params.set('page', page);
   const r = await api(`${API}/completed?${params}`);
   compPage = r.page;
-  const first = (r.page - 1) * 100;
+  const first = (r.page - 1) * r.pageSize;
   $('#compRows').innerHTML = r.items.map((e, i) => `<tr class="row-link ${e.status === 'Won' ? 'row-won' : ''}" data-open-id="${e._id}" title="Click to open">
       <td class="num sl-no">${first + i + 1}</td>
-      <td><a href="#/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
+      <td><a href="/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
       <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
       <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
       <td>${esc(e.doneBy) || '—'}</td>
@@ -1494,30 +1559,24 @@ async function loadCompleted(page = compPage) {
       <td>${e.completedAt ? fmtDateTime(e.completedAt) : '—'}</td>
       <td>${esc(e.completedBy) || '<span class="sub">—</span>'}</td>
       <td>${onTime(e)}</td>
-      <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
     </tr>`).join('');
   $('#compEmpty').hidden = r.items.length > 0;
-  $('#compTotal').textContent = `${r.total.toLocaleString()} completed estimation${r.total === 1 ? '' : 's'}`;
-  $('#compPage').textContent = `Page ${r.page} of ${r.pages}`;
-  $('#compPrev').disabled = r.page <= 1;
-  $('#compNext').disabled = r.page >= r.pages;
+  renderPager('#compPager', r, `completed estimation${r.total === 1 ? '' : 's'}`, p => loadCompleted(p).then(() => window.scrollTo(0, 0)));
 }
 
 $('#compRows').addEventListener('click', ev => {
   if (ev.target.closest('a, button')) return;
   const row = ev.target.closest('tr[data-open-id]');
   if (!row || getSelection().toString()) return;
-  const url = `#/edit/${row.dataset.openId}`;
+  const url = `/edit/${row.dataset.openId}`;
   if (ev.ctrlKey || ev.metaKey) window.open(url, '_blank');
-  else location.hash = url;
+  else go(url);
 });
 let compSearchTimer;
 $('#compSearch').oninput = () => { clearTimeout(compSearchTimer); compSearchTimer = setTimeout(() => loadCompleted(1), 250); };
 $('#compFrom').onchange = () => loadCompleted(1);
 $('#compTo').onchange = () => loadCompleted(1);
 $('#compClear').onclick = () => { ['#compSearch', '#compFrom', '#compTo'].forEach(s => { $(s).value = ''; }); loadCompleted(1); };
-$('#compPrev').onclick = () => loadCompleted(compPage - 1);
-$('#compNext').onclick = () => loadCompleted(compPage + 1);
 
 // =====================================================================
 // NOTIFICATIONS (estimations changed after being marked Completed)
@@ -1544,7 +1603,7 @@ async function loadNotifications(page = notifPage) {
   notifPage = r.page;
   $('#notifRows').innerHTML = r.items.map(n => `<tr class="${n.read ? 'notif-read' : 'notif-unread'}">
       <td>${fmtDateTime(n.createdAt)}</td>
-      <td>${n.action === 'Deleted' ? `<strong>${esc(n.jobNo) || '—'}</strong>` : `<a href="#/edit/${n.estimation}"><strong>${esc(n.jobNo) || '—'}</strong></a>`}</td>
+      <td>${n.action === 'Deleted' ? `<strong>${esc(n.jobNo) || '—'}</strong>` : `<a href="/edit/${n.estimation}"><strong>${esc(n.jobNo) || '—'}</strong></a>`}</td>
       <td class="project-cell" title="${esc(n.projectName)}">${esc(n.projectName)}</td>
       <td>${esc(n.clientName) || '—'}</td>
       <td>${esc(n.by) || '<span class="sub">—</span>'}${n.byRole ? `<div class="sub">${esc(ROLE_NAMES[n.byRole] || n.byRole)}</div>` : ''}</td>
@@ -1554,10 +1613,8 @@ async function loadNotifications(page = notifPage) {
       <td class="actions-cell"><button class="btn small" data-notif="${n._id}" data-read="${n.read ? 0 : 1}">${n.read ? 'Mark unread' : 'Mark read'}</button></td>
     </tr>`).join('');
   $('#notifEmpty').hidden = r.items.length > 0;
-  $('#notifTotal').textContent = `${r.total.toLocaleString()} notification${r.total === 1 ? '' : 's'} · ${r.unread} unread`;
-  $('#notifPage').textContent = `Page ${r.page} of ${r.pages}`;
-  $('#notifPrev').disabled = r.page <= 1;
-  $('#notifNext').disabled = r.page >= r.pages;
+  renderPager('#notifPager', r, `notification${r.total === 1 ? '' : 's'}`, p => loadNotifications(p).then(() => window.scrollTo(0, 0)),
+    ` · <strong>${r.unread}</strong> unread`);
   $('#notifReadAll').disabled = !r.unread;
   $('#notifCount').textContent = r.unread > 99 ? '99+' : r.unread;
   $('#notifCount').hidden = !r.unread;
@@ -1577,61 +1634,295 @@ $('#notifReadAll').onclick = async () => {
 };
 $('#notifUnread').onchange = () => loadNotifications(1);
 $('#notifRefresh').onclick = () => loadNotifications(1);
-$('#notifPrev').onclick = () => loadNotifications(notifPage - 1);
-$('#notifNext').onclick = () => loadNotifications(notifPage + 1);
+
+// =====================================================================
+// CALENDAR (projects by due date)
+// =====================================================================
+// calSel: the picked day; calView: the month shown (both kept while moving between pages)
+let calSel = null, calView = null;
+const CAL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const ymd = (y, m, d) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10); // month may over/underflow
+const isOpenOverdue = e => !e.completed && !CLOSED.includes(e.status) && toInputDate(e.dueDate) < today();
+
+async function loadCalendar() {
+  calSel = calSel || today();
+  if (!calView) { const [y, m] = calSel.split('-').map(Number); calView = { y, m: m - 1 }; }
+  $('#calDate').value = calSel;
+  await Promise.all([loadCalendarMonth(), loadCalendarDay()]);
+}
+
+// Open / overdue / sent for bid: the colour of a project in the calendar
+const calState = e => (e.completed ? 'done' : isOpenOverdue(e) ? 'over' : 'open');
+// Badge colour by number of projects due: 1-4 green, 5-8 yellow, 9+ red
+const calLevel = n => (n >= 9 ? 'high' : n >= 5 ? 'mid' : 'low');
+
+// "12 due · 3 overdue · 5 sent for bid" (only the parts that apply)
+function calCounts(list) {
+  if (!list.length) return '<span class="cal-pill">Nothing due</span>';
+  const over = list.filter(isOpenOverdue).length, done = list.filter(e => e.completed).length;
+  return `<span class="cal-pill">${list.length} due</span>` +
+    (over ? `<span class="cal-pill over">${over} overdue</span>` : '') +
+    (done ? `<span class="cal-pill done">${done} sent for bid</span>` : '');
+}
+
+// Month grid: 6 weeks from the Sunday on or before the 1st; each day shows how many projects are due
+async function loadCalendarMonth() {
+  const { y, m } = calView;
+  const lead = new Date(Date.UTC(y, m, 1)).getUTCDay();
+  const days = Array.from({ length: 42 }, (_, i) => ymd(y, m, 1 - lead + i));
+  const items = await api(`${API}/calendar?from=${days[0]}&to=${days[41]}`);
+  const count = {};
+  items.forEach(e => { const d = toInputDate(e.dueDate); count[d] = (count[d] || 0) + 1; });
+  $('#calMonth').textContent = `${CAL_MONTHS[m]} ${y}`;
+  const monthKey = ymd(y, m, 1).slice(0, 7);
+  const now = today();
+  $('#calGrid').innerHTML = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="cal-wd">${d}</div>`).join('') +
+    days.map(day => {
+      const n = count[day] || 0;
+      const cls = ['cal-day', day.slice(0, 7) !== monthKey && 'other', day === now && 'today', day === calSel && 'selected'].filter(Boolean).join(' ');
+      const label = `${fmtDate(`${day}T00:00:00Z`)}: ${n ? `${n} project${n === 1 ? '' : 's'} due` : 'nothing due'}`;
+      return `<div class="${cls}" data-cal-day="${day}" role="button" tabindex="0" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${day === calSel}">
+        <span class="cal-num">${+day.slice(8)}</span>
+        ${n ? `<span class="cal-badge ${calLevel(n)}">${n}</span>` : ''}</div>`;
+    }).join('');
+}
+
+// Projects due on the picked day
+async function loadCalendarDay() {
+  const items = await api(`${API}/calendar?from=${calSel}&to=${calSel}`);
+  const d = new Date(`${calSel}T00:00:00Z`);
+  $('#calDayTitle').textContent = `Due on ${d.toLocaleDateString(undefined, { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}` +
+    (calSel === today() ? ' (today)' : '');
+  $('#calDayCount').innerHTML = calCounts(items);
+  $('#calRows').innerHTML = items.map((e, i) => {
+    const due = dueInfo(e.dueDate, e.status, e.completed);
+    return `<tr class="row-link cal-row-${calState(e)} ${e.status === 'Won' ? 'row-won' : e.completed ? 'row-done' : ''}" data-open-id="${e._id}" title="Click to open">
+      <td class="num sl-no">${i + 1}</td>
+      <td><a href="/edit/${e._id}"><strong>${esc(e.jobNo) || '—'}</strong></a></td>
+      <td class="project-cell" title="${esc(e.projectName)}">${esc(e.projectName)}</td>
+      <td>${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}</td>
+      <td>${esc(e.doneBy) || '—'}</td>
+      <td class="num">${fmt(e.totalHours)}</td>
+      <td class="num"><strong>${fmt(e.approxTonnage)}</strong></td>
+      <td>${e.completed ? '<span class="due due-closed">✓ Sent for bid</span>' : due ? `<span class="due ${due.cls}">${due.text}</span>` : '—'}</td>
+      <td><span class="badge ${statusClass(e.status)}">${esc(e.status)}</span></td>
+    </tr>`;
+  }).join('');
+  $('#calEmpty').hidden = items.length > 0;
+}
+
+function calPick(day) {
+  calSel = day;
+  $('#calDate').value = day;
+  const [y, m] = day.split('-').map(Number);
+  const monthChanged = y !== calView.y || m - 1 !== calView.m;
+  calView = { y, m: m - 1 };
+  if (monthChanged) loadCalendarMonth();
+  else document.querySelectorAll('#calGrid .cal-day').forEach(b => {
+    b.classList.toggle('selected', b.dataset.calDay === day);
+    b.setAttribute('aria-pressed', b.dataset.calDay === day);
+  });
+  loadCalendarDay();
+}
+// Click a day to list it below (a project inside a day opens that project); Enter / Space work too
+$('#calGrid').addEventListener('click', ev => {
+  if (ev.target.closest('a')) return;
+  const b = ev.target.closest('[data-cal-day]');
+  if (b) calPick(b.dataset.calDay);
+});
+$('#calGrid').addEventListener('keydown', ev => {
+  const b = ev.target.closest('[data-cal-day]');
+  if (b && ev.target === b && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); calPick(b.dataset.calDay); }
+});
+$('#calDate').onchange = () => { if ($('#calDate').value) calPick($('#calDate').value); };
+$('#calToday').onclick = () => calPick(today());
+const calShift = n => { const d = new Date(Date.UTC(calView.y, calView.m + n, 1)); calView = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; loadCalendarMonth(); };
+$('#calPrev').onclick = () => calShift(-1);
+$('#calNext').onclick = () => calShift(1);
+$('#calDayPrev').onclick = () => calPick(addDays(calSel, -1));
+$('#calDayNext').onclick = () => calPick(addDays(calSel, 1));
+$('#calRows').addEventListener('click', ev => {
+  if (ev.target.closest('a, button')) return;
+  const row = ev.target.closest('tr[data-open-id]');
+  if (!row || getSelection().toString()) return;
+  const url = `/edit/${row.dataset.openId}`;
+  if (ev.ctrlKey || ev.metaKey) window.open(url, '_blank');
+  else go(url);
+});
+
+// =====================================================================
+// BACKUPS (Admin)
+// =====================================================================
+const BACKUP_TYPES = {
+  auto: ['Automatic', 'Weekly backup (Sunday 6 AM)'],
+  manual: ['Manual', 'Made with “Back up now”'],
+  'pre-restore': ['Before restore', 'The data as it was just before a restore — restore this to undo it'],
+  uploaded: ['Uploaded', 'A backup file that was restored from this computer'],
+};
+const fmtSize = n => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+const backupMsg = (text, ok = true) => { $('#backupMsg').textContent = text; $('#backupMsg').classList.toggle('error', !ok); };
+
+async function loadBackups() {
+  const r = await api('/api/backups');
+  const lastAuto = r.items.find(b => b.type === 'auto');
+  $('#backupInfo').innerHTML = `
+    <div><span class="sub">Automatic backup</span><strong>${esc(r.schedule)}</strong></div>
+    <div><span class="sub">Next automatic backup</span><strong>${fmtDateTime(r.nextRun)}</strong></div>
+    <div><span class="sub">Last automatic backup</span><strong>${lastAuto ? fmtDateTime(lastAuto.createdAt) : 'None yet'}</strong></div>
+    <div><span class="sub">Kept</span><strong>Last ${r.keepAuto} automatic · manual ones until deleted</strong></div>
+    <div class="wide"><span class="sub">Saved in (on the server)</span><code>${esc(r.dir)}</code></div>
+    ${r.lastAutoError ? `<div class="wide error">Last automatic backup failed (${fmtDateTime(r.lastAutoError.at)}): ${esc(r.lastAutoError.message)}</div>` : ''}`;
+  $('#backupRows').innerHTML = r.items.map(b => {
+    const [label, tip] = BACKUP_TYPES[b.type] || [b.type, ''];
+    const n = encodeURIComponent(b.name);
+    return `<tr>
+      <td><strong>${fmtDateTime(b.createdAt)}</strong><div class="sub">${esc(b.name)}</div></td>
+      <td><span class="backup-type ${b.type}" title="${esc(tip)}">${label}</span></td>
+      <td class="num">${fmtSize(b.size)}</td>
+      <td class="actions-cell">
+        <a class="btn small" href="/api/backups/${n}/download" download title="Save this backup file on this computer">Download</a>
+        <button type="button" class="btn small" data-restore="${esc(b.name)}" data-when="${esc(fmtDateTime(b.createdAt))}">Restore</button>
+        <button type="button" class="btn small danger icon-btn" data-del-backup="${esc(b.name)}" title="Delete this backup" aria-label="Delete">${TRASH_ICON}</button>
+      </td></tr>`;
+  }).join('');
+  $('#backupEmpty').hidden = r.items.length > 0;
+}
+
+// Restoring replaces everything: ask the admin to type RESTORE
+const confirmRestore = what => prompt(`Restore ${what}?\n\nAll estimations, clients, users and notifications will be REPLACED with the backup's. ` +
+  'A backup of the current data is made first, so this can be undone.\n\nType RESTORE to continue.')?.trim().toUpperCase() === 'RESTORE';
+
+function restoreDone(r) {
+  alert(`Restore complete: ${r.counts.estimations} estimations, ${r.counts.clients} clients, ${r.counts.users} users, ${r.counts.notifications} notifications.\n\n` +
+    `The data from before the restore was saved as "${r.safetyBackup}". The page will now reload.`);
+  location.reload();
+}
+
+async function withBackupBusy(btn, text, fn) {
+  const buttons = document.querySelectorAll('#backupsView button');
+  buttons.forEach(b => { b.disabled = true; });
+  backupMsg(text);
+  try { await fn(); } catch (err) { if (!err.silent) backupMsg(err.message, false); } finally { buttons.forEach(b => { b.disabled = false; }); }
+}
+
+$('#backupNowBtn').onclick = ev => withBackupBusy(ev.currentTarget, 'Backing up…', async () => {
+  const r = await api('/api/backups', { method: 'POST' });
+  await loadBackups();
+  backupMsg(`Backup saved (${fmtSize(r.size)}): ${r.counts.estimations} estimations, ${r.counts.clients} clients, ${r.counts.users} users.`);
+});
+
+$('#backupRows').addEventListener('click', async ev => {
+  const restoreBtn = ev.target.closest('[data-restore]');
+  const delBtn = ev.target.closest('[data-del-backup]');
+  if (restoreBtn) {
+    if (!confirmRestore(`the backup from ${restoreBtn.dataset.when}`)) return;
+    await withBackupBusy(restoreBtn, 'Restoring… please wait', async () => {
+      restoreDone(await api(`/api/backups/${encodeURIComponent(restoreBtn.dataset.restore)}/restore`, { method: 'POST' }));
+    });
+  } else if (delBtn) {
+    if (!confirm('Delete this backup? It cannot be recovered.')) return;
+    await withBackupBusy(delBtn, 'Deleting…', async () => {
+      await api(`/api/backups/${encodeURIComponent(delBtn.dataset.delBackup)}`, { method: 'DELETE' });
+      await loadBackups();
+      backupMsg('Backup deleted.');
+    });
+  }
+});
+
+$('#restoreFileBtn').onclick = async ev => {
+  const file = $('#restoreFile').files[0];
+  if (!file) return alert('Choose a backup file (.json.gz) first.');
+  if (!confirmRestore(`from the file "${file.name}"`)) return;
+  await withBackupBusy(ev.currentTarget, 'Uploading and restoring… please wait', async () => {
+    restoreDone(await api('/api/backups/upload-restore', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }));
+  });
+};
 
 // =====================================================================
 // ROUTER
 // =====================================================================
 async function route() {
   if (!me) return;
-  let hash = location.hash || '#/';
-  if (((hash.startsWith('#/users') || hash.startsWith('#/log')) && !can('admin')) ||
-    (hash.startsWith('#/notifications') && !can('team_leader'))) { history.replaceState(null, '', '#/'); hash = '#/'; }
-  const editing = hash.startsWith('#/new') || hash.startsWith('#/edit/');
-  const clients = hash.startsWith('#/clients');
-  const users = hash.startsWith('#/users');
-  const log = hash.startsWith('#/log');
-  const notif = hash.startsWith('#/notifications');
-  const completed = hash.startsWith('#/completed');
-  $('#listView').hidden = editing || clients || users || log || notif || completed;
+  let path = location.pathname;
+  const is = p => path === p || path.startsWith(`${p}/`);
+  if (((is('/users') || is('/log') || is('/backups')) && !can('admin')) || (is('/notifications') && !can('team_leader'))) {
+    history.replaceState(null, '', '/'); path = '/'; lastPath = path;
+  }
+  const editing = is('/new') || path.startsWith('/edit/');
+  const clients = is('/clients');
+  const users = is('/users');
+  const log = is('/log');
+  const notif = is('/notifications');
+  const completed = is('/completed');
+  const calendar = is('/calendar');
+  const backups = is('/backups');
+  $('#listView').hidden = editing || clients || users || log || notif || completed || calendar || backups;
+  $('#backupsView').hidden = !backups;
+  $('#navBackups').classList.toggle('active', backups);
   $('#completedView').hidden = !completed;
   $('#navCompleted').classList.toggle('active', completed);
+  $('#calendarView').hidden = !calendar;
+  $('#navCalendar').classList.toggle('active', calendar);
   $('#editorView').hidden = !editing;
   $('#clientsView').hidden = !clients;
   $('#usersView').hidden = !users;
   $('#logView').hidden = !log;
   $('#notifView').hidden = !notif;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif && !completed);
+  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif && !completed && !calendar && !backups);
   $('#navClients').classList.toggle('active', clients);
   $('#navNotif').classList.toggle('active', notif);
   $('#navUsers').classList.toggle('active', users);
   $('#navLog').classList.toggle('active', log);
   try {
-    if (hash.startsWith('#/edit/')) await openEditor(hash.slice(7));
-    else if (hash.startsWith('#/new')) await openEditor(null);
+    if (path.startsWith('/edit/')) await openEditor(decodeURIComponent(path.slice(6)));
+    else if (editing) await openEditor(null);
     else if (clients) await loadClients();
     else if (users) await loadUsers();
     else if (log) await loadLog(1);
     else if (notif) await loadNotifications(1);
     else if (completed) await loadCompleted(1);
+    else if (calendar) await loadCalendar();
+    else if (backups) await loadBackups();
     else { await loadList(); refreshNotifCount(); }
   } catch (err) {
     if (err.silent) return;
     alert(err.message);
-    location.hash = '#/';
+    go('/');
   }
   window.scrollTo(0, 0);
 }
 
-let lastHash = location.hash;
-window.addEventListener('hashchange', ev => {
-  if (dirty && !$('#editorView').hidden && !confirm('You have unsaved changes. Leave anyway?')) {
-    history.replaceState(null, '', lastHash);
-    return;
-  }
-  lastHash = location.hash;
+// Old links / bookmarks used "#/edit/…" style addresses: turn them into the plain path
+if (location.hash.startsWith('#/')) history.replaceState(null, '', location.hash.slice(1) || '/');
+let lastPath = location.pathname;
+
+const leaveEditorOk = () => !(dirty && !$('#editorView').hidden && !confirm('You have unsaved changes. Leave anyway?'));
+
+// Go to a page of the app without reloading
+function go(path) {
+  if (path === location.pathname) { if (leaveEditorOk()) { dirty = false; route(); } return; }
+  if (!leaveEditorOk()) return;
+  history.pushState(null, '', path);
+  lastPath = location.pathname;
+  dirty = false;
+  route();
+}
+
+// Links inside the app (href="/…") change the page without a full reload; Ctrl/⌘/middle-click still open a new tab
+document.addEventListener('click', ev => {
+  const a = ev.target.closest('a[href^="/"]');
+  if (!a || ev.defaultPrevented || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+  if (a.target === '_blank' || a.hasAttribute('download') || a.getAttribute('href').startsWith('/api/')) return;
+  ev.preventDefault();
+  go(a.getAttribute('href'));
+});
+
+// Browser Back / Forward
+window.addEventListener('popstate', () => {
+  if (location.pathname === lastPath) return;
+  if (!leaveEditorOk()) { history.pushState(null, '', lastPath); return; }
+  lastPath = location.pathname;
   dirty = false;
   route();
 });
@@ -1643,6 +1934,7 @@ function pinChartHeadings() {
   const bar = $('#editorView .editor-bar');
   if (!bar || $('#editorView').hidden) return;
   const barBottom = bar.getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--editor-bar-h', `${bar.offsetHeight}px`); // sticky description headings
   document.querySelectorAll('.chart-wrap').forEach(wrap => {
     const head = wrap.querySelector('thead');
     const maxOffset = Math.max(0, wrap.clientHeight - (head ? head.offsetHeight : 0));
@@ -1655,7 +1947,7 @@ window.addEventListener('resize', pinChartHeadings);
 
 const statusOpts = STATUSES.map(s => `<option>${s}</option>`).join('');
 $('#statusFilter').insertAdjacentHTML('beforeend', statusOpts);
-$('#statusSelect').innerHTML = statusOpts;
+$('#statusSelect').innerHTML = statusOpts + `<option value="${COMPLETED_OPT}">✓ Sent for Bid</option>`;
 $('#statusFilter').onchange = loadList;
 $('#valueFilter').onchange = loadList;
 $('#fromDate').onchange = loadList;
@@ -1683,6 +1975,99 @@ document.querySelectorAll('.due-quick button').forEach(b => {
   };
 });
 $('#exportBtn').onclick = () => { location.href = `${API}/export?${listParams()}`; };
+
+// ---------- Bulk upload (Admin) ----------
+// Progress bar: sending the file = first 20%, adding the rows (streamed from the server) = the rest
+const bulkDialog = $('#bulkDialog');
+let bulkBusy = false;
+$('#bulkBtn').onclick = () => {
+  $('#bulkFile').value = '';
+  $('#bulkProgress').hidden = true;
+  $('#bulkResult').innerHTML = '';
+  bulkDialog.showModal();
+};
+$('#bulkClose').onclick = () => { if (!bulkBusy) bulkDialog.close(); };
+bulkDialog.addEventListener('cancel', ev => { if (bulkBusy) ev.preventDefault(); });
+
+function bulkSetProgress(pct, phase, state = '') {
+  pct = Math.max(0, Math.min(100, Math.round(pct)));
+  $('#bulkFill').style.width = `${pct}%`;
+  $('#bulkFill').className = `bulk-fill ${state}`;
+  $('.bulk-bar').setAttribute('aria-valuenow', pct);
+  $('#bulkPct').textContent = `${pct}%`;
+  $('#bulkPhase').textContent = phase;
+}
+
+function bulkRenderResult(r) {
+  const table = (title, rows, cols) => !rows.length ? '' : `<h4>${title} (${rows.length})</h4>
+    <div class="bulk-scroll"><table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(x => `<tr>${cols.map(c => `<td>${c[1](x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const dateCells = r.added.filter(a => a.fromDateCell);
+  $('#bulkResult').innerHTML = `
+    <p class="save-msg">${r.added.length} estimation${r.added.length === 1 ? '' : 's'} added` +
+      `${r.skipped.length ? `, ${r.skipped.length} skipped` : ''}${r.errors.length ? `, ${r.errors.length} with errors` : ''}.` +
+      `${r.newClients.length ? ` New client${r.newClients.length === 1 ? '' : 's'} added: ${r.newClients.map(esc).join(', ')}.` : ''}</p>
+    ${table('Errors — not added', r.errors, [['Row', x => x.row], ['Project', x => esc(x.projectName) || '—'], ['Problem', x => esc(x.reason)]])}
+    ${table('Skipped', r.skipped, [['Row', x => x.row], ['Project', x => esc(x.projectName)], ['Reason', x => esc(x.reason)]])}
+    ${table(`Dates read from Excel date cells${r.swapDateCells ? ' (day / month swapped back)' : ''} — please check`, dateCells,
+      [['Row', x => x.row], ['Project', x => esc(x.projectName)], ['Due date', x => fmtDate(x.dueDate)]])}`;
+}
+
+$('#bulkUploadBtn').onclick = () => {
+  const file = $('#bulkFile').files[0];
+  if (!file) return alert('Choose an Excel (.xlsx) file first.');
+  bulkBusy = true;
+  $('#bulkUploadBtn').disabled = $('#bulkClose').disabled = true;
+  $('#bulkProgress').hidden = false;
+  $('#bulkResult').innerHTML = '';
+  bulkSetProgress(0, 'Uploading file…');
+
+  const xhr = new XMLHttpRequest();
+  let seen = 0, final = null, failed = null;
+  const finish = () => {
+    bulkBusy = false;
+    $('#bulkUploadBtn').disabled = $('#bulkClose').disabled = false;
+  };
+  // Read the complete progress lines received so far
+  const readLines = () => {
+    const text = xhr.responseText;
+    const end = text.lastIndexOf('\n') + 1;
+    for (const line of text.slice(seen, end).split('\n')) {
+      if (!line.trim()) continue;
+      const m = JSON.parse(line);
+      if (m.type === 'start') bulkSetProgress(20, m.total ? `Adding ${m.total} estimation${m.total === 1 ? '' : 's'}…` : 'Checking rows…');
+      else if (m.type === 'progress') bulkSetProgress(20 + 80 * (m.done / m.total), `Adding estimations… ${m.done} of ${m.total}`);
+      else if (m.type === 'done') final = m;
+      else if (m.type === 'error') failed = m.error;
+    }
+    seen = end;
+  };
+  xhr.upload.onprogress = ev => { if (ev.lengthComputable) bulkSetProgress(20 * (ev.loaded / ev.total), 'Uploading file…'); };
+  xhr.onprogress = () => { if (xhr.status < 400) readLines(); };
+  xhr.onload = () => {
+    finish();
+    if (xhr.status === 401) { bulkDialog.close(); dirty = false; showAuth(); return; }
+    if (xhr.status >= 400) {
+      let msg = `Upload failed (${xhr.status})`;
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch { /* not JSON */ }
+      bulkSetProgress(100, msg, 'failed');
+      return;
+    }
+    try { readLines(); } catch { failed = failed || 'Unexpected reply from the server'; }
+    if (final && !failed) {
+      bulkSetProgress(100, 'Done', 'done');
+      bulkRenderResult(final);
+      $('#bulkFile').value = '';
+    } else {
+      bulkSetProgress(100, failed || 'Upload did not finish — check the list before uploading again', 'failed');
+    }
+    loadList();
+  };
+  xhr.onerror = () => { finish(); bulkSetProgress(100, 'Connection lost — check the list before uploading again', 'failed'); loadList(); };
+  xhr.open('POST', `${API}/bulk?swapDateCells=${$('#bulkSwap').checked ? 1 : 0}`);
+  xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+  xhr.send(file);
+};
 let searchTimer;
 $('#search').placeholder = 'Search No., project, client, done by, scope…';
 $('#search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadList, 250); };
