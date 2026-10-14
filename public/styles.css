@@ -71,6 +71,29 @@ main { padding: 20px 24px; }
 .backup-type.auto { background: #e7eefb; color: #1f5fbf; }
 .backup-type.manual { background: #dff5e6; color: #1b7a3d; }
 .backup-type.pre-restore { background: #fff4dc; color: #a26800; }
+.backup-type.hourly { background: #efe7fb; color: #6a3fb5; }
+.backup-filter { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.backup-filter select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; }
+/* ---------- Import Excel ---------- */
+.imp-search { display: flex; flex-direction: column; gap: 6px; font-weight: 600; max-width: 560px; }
+.imp-search input { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 400; }
+.imp-results { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-width: 760px; max-height: 360px; overflow: auto; }
+.imp-results button { display: flex; gap: 10px; align-items: center; text-align: left; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; color: var(--text); }
+.imp-results button:hover { background: #eef4ff; border-color: #b9cdf0; }
+.imp-results .imp-no { font-weight: 700; min-width: 70px; }
+.imp-results .imp-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-results .sub, .imp-results p { color: var(--muted); font-size: 13px; }
+.imp-card { border-left: 4px solid var(--primary); }
+.imp-card .lock-note { margin: 12px 0 0; }
+.imp-warn { margin: 12px 0 0; padding: 10px 14px; border: 1px solid #f0d58a; background: #fff8e1; color: #7a5a00; border-radius: 8px; }
+.imp-warn ul { margin: 4px 0 0; padding-left: 18px; }
+#impPreview table { margin-top: 12px; }
+#impPreview .list td.num, #impPreview .list th.num { text-align: right; }
+
+/* Editor of an estimation that is Sent for Bid / Submitted: read-only until the status is changed */
+.lock-note { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #f0d58a; background: #fff8e1; color: #7a5a00; border-radius: 8px; font-weight: 600; }
+#form.locked .grip { cursor: default; opacity: .4; }
 .backup-msg { min-height: 1.4em; }
 .backup-msg.error { color: var(--danger); }
 #backupRows .actions-cell { white-space: nowrap; text-align: right; }
@@ -437,6 +460,8 @@ body.auth-off .user-menu, body.auth-off #navUsers { display: none !important; }
 #auditInfo { margin-left: 4px; }
 dialog#pwDialog { border: none; border-radius: 10px; padding: 0; width: min(420px, 95vw); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 dialog#pwDialog::backdrop { background: rgba(15, 25, 45, .45); }
+dialog#delDialog { border: none; border-radius: 10px; padding: 0; width: min(420px, 95vw); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+dialog#delDialog::backdrop { background: rgba(15, 25, 45, .45); }
 dialog#bulkDialog { border: none; border-radius: 10px; padding: 0; width: min(760px, 95vw); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 dialog#bulkDialog::backdrop { background: rgba(15, 25, 45, .45); }
 .bulk-progress { margin: 4px 0 14px; }

@@ -48,6 +48,7 @@
       <a href="/notifications" id="navNotif" data-min-role="team_leader">Notifications <span class="notif-count" id="notifCount" hidden></span></a>
       <a href="/users" id="navUsers" data-min-role="admin">Users</a>
       <a href="/log" id="navLog" data-min-role="admin">Log</a>
+      <a href="/import" id="navImport" data-min-role="admin">Import Excel</a>
       <a href="/backups" id="navBackups" data-min-role="admin">Backups</a>
     </nav>
     <span class="spacer"></span>
@@ -149,6 +150,7 @@
     </div>
     <p id="formError" class="error" hidden></p>
 
+    <p id="lockNote" class="lock-note" hidden></p>
     <form id="form" autocomplete="off" onsubmit="return false">
       <div class="top-grid">
       <section class="card accent-blue details-card">
@@ -478,6 +480,41 @@
     </section>
   </main>
 
+  <!-- ===================== IMPORT EXCEL (Admin) ===================== -->
+  <main id="importView" hidden>
+    <section class="card">
+      <div class="card-head"><h3>Import Excel</h3>
+        <span class="hint">Fill a project's estimation chart from an Estimation Chart Excel file (one worksheet = one page).</span></div>
+      <label class="imp-search">1. Select a project
+        <input type="search" id="impSearch" placeholder="Search by No., project or client…" autocomplete="off" /></label>
+      <div class="imp-results" id="impResults"></div>
+    </section>
+
+    <section class="card imp-card" id="impCard" hidden>
+      <div class="card-head"><h3 id="impTitle"></h3><span class="spacer"></span>
+        <a class="btn small" id="impOpen" href="#">Open project</a>
+        <button type="button" class="btn small" id="impChange">Change project</button></div>
+      <div class="backup-info" id="impDetails"></div>
+      <p class="lock-note" id="impLocked" hidden></p>
+    </section>
+
+    <section class="card" id="impUpload" hidden>
+      <div class="card-head"><h3>2. Upload the Excel file</h3></div>
+      <div class="import-row">
+        <input type="file" id="impFile" accept=".xlsx" />
+        <label class="backup-filter">Pages
+          <select id="impMode">
+            <option value="replace">Replace the project's chart pages</option>
+            <option value="append">Add as new pages after the existing ones</option>
+          </select></label>
+      </div>
+      <div id="impPreview"></div>
+      <div class="actions" id="impActions" hidden><span class="spacer"></span>
+        <button type="button" class="btn primary" id="impFillBtn">Fill data into project</button></div>
+      <p class="save-msg backup-msg" id="impMsg" role="status"></p>
+    </section>
+  </main>
+
   <!-- ===================== BACKUPS (Admin) ===================== -->
   <main id="backupsView" hidden>
     <section class="card">
@@ -487,8 +524,15 @@
     </section>
     <section class="card">
       <div class="card-head"><h3>Saved backups</h3>
-        <span class="hint">Restore replaces all estimations, clients, users and notifications with the backup's.
-          A backup of the current data is made automatically first, so a restore can be undone.</span></div>
+        <span class="hint">Restore replaces all estimations, clients, users and notifications with the backup's
+          (an hourly backup replaces the estimations only).
+          A backup of the current data is made automatically first, so a restore can be undone.</span><span class="spacer"></span>
+        <label class="backup-filter">Show
+          <select id="backupFilter">
+            <option value="">All backups</option>
+            <option value="hourly">Hourly (estimations)</option>
+            <option value="other">All except hourly</option>
+          </select></label></div>
       <div class="table-wrap">
         <table class="list">
           <thead><tr><th>Date &amp; time</th><th>Type</th><th class="num">Size</th><th></th></tr></thead>
@@ -547,6 +591,18 @@
       <label>Confirm new password<input name="confirm" type="password" required minlength="8" autocomplete="new-password" /></label>
       <p class="error" id="pwError" hidden></p>
       <div class="actions"><span class="spacer"></span><button type="submit" class="btn primary">Save password</button></div>
+    </form>
+  </dialog>
+
+  <!-- ===================== DELETE PASSWORD ===================== -->
+  <dialog id="delDialog">
+    <form id="delForm" class="dialog-body" method="dialog">
+      <div class="card-head"><h3>Delete estimation</h3><span class="spacer"></span>
+        <button type="button" class="x" id="delClose">×</button></div>
+      <p id="delText"></p>
+      <label>Delete password<input name="password" type="password" required autocomplete="off" /></label>
+      <p class="error" id="delError" hidden></p>
+      <div class="actions"><span class="spacer"></span><button type="submit" class="btn danger">Delete</button></div>
     </form>
   </dialog>
 

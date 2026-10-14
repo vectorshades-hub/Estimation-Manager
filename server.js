@@ -34,7 +34,7 @@ app.use('/api/logs', requireRole('admin'), logRoutes);
 app.use('/api/backups', requireRole('admin'), backupRoutes);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
-// App pages (/, /completed, /edit/<id>, …) are all served by index.html; the browser script shows the right page.
+// App pages (/, /completed, /import, /edit/<id>, …) are all served by index.html; the browser script shows the right page.
 // Paths with a file extension are missing static files and stay 404.
 app.get(/^\/(?!.*\.\w+$)/, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 

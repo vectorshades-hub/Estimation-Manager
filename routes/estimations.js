@@ -232,6 +232,78 @@ router.get('/next-no', async (req, res, next) => {
   }
 });
 
+// ---------- Import Excel (Admin): fill an estimation's chart from an estimation chart workbook ----------
+const { readEstimationWorkbook } = require('../lib/importExcel');
+const IMPORT_FIELDS = 'jobNo projectName clientName contactPerson date dueDate doneBy status completed completedAt createdBy updatedBy updatedAt sheetCount pageCount totalCount totalHours totalDwgs approxTonnage pages.name';
+
+// Project picker: every estimation (completed ones too), searched by No. / project / client, newest first
+router.get('/import-search', requireRole('admin'), async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const rx = q && new RegExp(escapeRegex(q), 'i');
+    const docs = await Estimation.find(rx ? { $or: [{ jobNo: rx }, { projectName: rx }, { clientName: rx }] } : {})
+      .select('jobNo projectName clientName dueDate status completed').sort({ createdAt: -1 }).limit(30).lean();
+    res.json(docs);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/import-card', requireRole('admin'), async (req, res, next) => {
+  try {
+    const doc = await Estimation.findById(req.params.id).select(IMPORT_FIELDS).lean();
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...(await withFlags([doc]))[0], pageNames: (doc.pages || []).map(p => p.name) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Body: the .xlsx file. ?mode=replace (default: the file's pages replace the chart) | append (added after the
+// existing pages). import-preview only reads the file and returns what would be filled; import-excel saves it.
+const importExcel = preview => async (req, res, next) => {
+  try {
+    const doc = await Estimation.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    const file = await readEstimationWorkbook(req.body);
+    const append = req.query.mode === 'append';
+    const warnings = [...file.warnings];
+    const same = (a, b) => nameKey(a).replace(/[^a-z0-9]/g, '') === nameKey(b).replace(/[^a-z0-9]/g, '');
+    const label = [doc.jobNo, doc.projectName].filter(Boolean).join(' ');
+    if (file.header.project && !same(file.header.project, label) && !same(file.header.project, doc.projectName)) {
+      warnings.push(`The file is for project "${file.header.project}", not "${label}"`);
+    }
+    if (file.header.client && !same(file.header.client, doc.clientName)) {
+      warnings.push(`The file is for client "${file.header.client}", not "${doc.clientName}"`);
+    }
+    let pages = file.pages;
+    if (append) {
+      const taken = new Set(doc.pages.map(p => p.name.toLowerCase()));
+      pages = pages.map(p => {
+        let name = p.name;
+        for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${p.name} (${k})`;
+        taken.add(name.toLowerCase());
+        return { ...p, name };
+      });
+    }
+    const result = { header: file.header, summary: file.summary, exclusions: file.exclusions, warnings,
+      existingPages: doc.pages.length, mode: append ? 'append' : 'replace' };
+    if (preview) return res.json(result);
+
+    const body = { pages: append ? [...doc.toObject({ flattenMaps: true }).pages, ...pages] : pages };
+    if (file.exclusions.length) body.exclusions = file.exclusions;
+    checkLocked(doc, body);
+    doc.set({ ...body, ...(req.user.name ? { updatedBy: req.user.name } : {}) });
+    await doc.save(); // recomputes the totals
+    res.json({ ...result, saved: true, totalHours: doc.totalHours, approxTonnage: doc.approxTonnage, pageCount: doc.pageCount });
+  } catch (err) {
+    next(err);
+  }
+};
+const xlsxBody = express.raw({ type: () => true, limit: '20mb' });
+router.post('/:id/import-preview', requireRole('admin'), xlsxBody, importExcel(true));
+router.post('/:id/import-excel', requireRole('admin'), xlsxBody, importExcel(false));
+
 router.get('/:id', async (req, res, next) => {
   try {
     const item = await Estimation.findById(req.params.id);
@@ -337,6 +409,22 @@ function checkStatusChange(req, from, to) {
     throw Object.assign(new Error('Only a Team Leader, Manager or Admin can mark an estimation Won or Lost'), { status: 403 });
   }
 }
+
+// "Sent for Bid" (completed) or Submitted: locked. Nothing else can be changed until the status is changed
+// to one that is not locked (a change that keeps it locked may only touch the status / Sent for Bid).
+const isLocked = e => !!e.completed || e.status === 'Submitted';
+const LOCK_KEYS = ['status', 'completed'];
+function checkLocked(doc, body) {
+  if (!isLocked(doc)) return;
+  const after = { completed: 'completed' in body ? !!body.completed : doc.completed, status: body.status ?? doc.status };
+  if (!isLocked(after)) return; // being unlocked: the other changes are allowed with it
+  if (Object.keys(body).some(k => !LOCK_KEYS.includes(k))) {
+    throw Object.assign(new Error(`This estimation is ${doc.completed ? 'Sent for Bid' : 'Submitted'} — change its status first to make changes`), { status: 409 });
+  }
+}
+
+// Deleting an estimation needs the delete password (sent in the X-Delete-Password header)
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || 'estimation@vs2026';
 
 // ---------- Bulk upload (Admin) ----------
 // .xlsx with one estimation per row, no header needed: A = due date (mm/dd/yyyy), B = project name, C = client name.
@@ -469,6 +557,7 @@ router.put('/:id', async (req, res, next) => {
     const doc = await Estimation.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     checkStatusChange(req, doc.status, req.body.status);
+    checkLocked(doc, req.body);
     const before = notify.snapshot(doc);
     const wasCompleted = doc.completed;
     doc.set({ ...clean(req.body), ...(req.user.name ? { updatedBy: req.user.name } : {}) });
@@ -487,8 +576,9 @@ router.put('/:id', async (req, res, next) => {
 router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
   try {
     const i = Number(req.params.page);
-    const doc = await Estimation.findById(req.params.id, 'pages.name pages.autoDesc pages.splitSheets completed completedAt jobNo projectName clientName');
+    const doc = await Estimation.findById(req.params.id, 'pages.name pages.autoDesc pages.splitSheets completed completedAt status jobNo projectName clientName');
     if (!doc) return res.status(404).json({ error: 'Not found' });
+    checkLocked(doc, { pages: true });
     const { autoDesc, splitSheets, structDescriptions, miscDescriptions, pageName } = req.body;
     // Pages added / removed / renamed but not saved yet: the index may point at another page
     if (!Number.isInteger(i) || i < 0 || i >= doc.pages.length || (pageName !== undefined && doc.pages[i].name !== pageName)) {
@@ -515,6 +605,7 @@ router.put('/:id/pages/:page/auto-desc', async (req, res, next) => {
 
 router.delete('/:id', requireRole('team_leader'), async (req, res, next) => {
   try {
+    if (req.get('X-Delete-Password') !== DELETE_PASSWORD) return res.status(403).json({ error: 'Wrong delete password' });
     const item = await Estimation.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
     if (item.completed) await notify.record(item, req.user, 'Deleted');

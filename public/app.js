@@ -182,6 +182,9 @@ const TRASH_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" 
 // Won / Lost can only be set or cleared by Team Leaders and above (the server checks this too).
 const DECIDED = ['Won', 'Lost'];
 const COMPLETED_OPT = 'Completed';
+// Sent for Bid (completed) or Submitted: locked — nothing can be changed until the status is changed (the server checks too)
+const isLocked = e => !!e.completed || e.status === 'Submitted';
+const LOCK_TIP = 'Sent for Bid / Submitted — change the status to make changes';
 function statusSelect(e) {
   const lead = can('team_leader');
   const shown = e.completed ? COMPLETED_OPT : e.status;
@@ -269,7 +272,7 @@ async function loadList(page = listPage) {
         <td class="center">${(() => {
           const yes = e.connectionDesign === 'Yes';
           return `<button type="button" class="cd-badge${yes ? ' yes' : ''}" data-cd="${yes ? 'No' : 'Yes'}" data-id="${e._id}"
-            data-label="${esc(estLabel(e))}" title="Click to change to ${yes ? 'No' : 'Yes'}">${yes ? 'Yes' : 'No'}</button>`;
+            data-label="${esc(estLabel(e))}" ${isLocked(e) ? `disabled title="${LOCK_TIP}"` : `title="Click to change to ${yes ? 'No' : 'Yes'}"`}>${yes ? 'Yes' : 'No'}</button>`;
         })()}</td>
         <td>${statusSelect(e)}</td>
         <td>${e.lessValue ? `<span class="lv-badge small" title="Less value job — ${LV_TITLE}">LVJ</span>` : '—'}</td>
@@ -324,10 +327,30 @@ $('#rows').addEventListener('click', async ev => {
     await api(`${API}/${d.id}`, { method: 'PUT', body: JSON.stringify({ status: d.won === '1' ? 'Won' : 'Submitted' }) });
     return loadList();
   }
-  if (!d.del || !confirm(`Delete ${d.label}?`)) return;
-  await api(`${API}/${d.del}`, { method: 'DELETE' });
-  loadList();
+  if (d.del && await askDeletePassword(d.del, d.label)) loadList();
 });
+
+// Deleting an estimation needs the delete password. Resolves true once deleted.
+function askDeletePassword(id, label) {
+  const dlg = $('#delDialog'), f = $('#delForm');
+  f.reset();
+  showError($('#delError'), '');
+  $('#delText').textContent = `Delete ${label}? This cannot be undone.`;
+  return new Promise(resolve => {
+    let deleted = false;
+    f.onsubmit = async ev => {
+      ev.preventDefault();
+      try {
+        await api(`${API}/${id}`, { method: 'DELETE', headers: { 'X-Delete-Password': f.password.value } });
+        deleted = true;
+        dlg.close();
+      } catch (err) { if (!err.silent) showError($('#delError'), err.message); }
+    };
+    dlg.onclose = () => resolve(deleted);
+    dlg.showModal();
+  });
+}
+$('#delClose').onclick = () => $('#delDialog').close();
 
 // Status changed in the list
 $('#rows').addEventListener('change', async ev => {
@@ -356,6 +379,7 @@ $('#rows').addEventListener('change', async ev => {
 // =====================================================================
 let cur = null;    // estimation being edited
 let dirty = false;
+let savedLocked = false; // the saved estimation is Sent for Bid / Submitted (see isLocked)
 let activePage = 0; // index of the chart page shown
 const pg = () => cur.pages[activePage];
 
@@ -436,9 +460,39 @@ async function openEditor(id) {
   activePage = 0;
   normalizeCur();
   dirty = false;
+  savedLocked = isLocked(cur);
   fillForm();
   renderAll();
+  applyLock();
 }
+
+// Sent for Bid / Submitted: everything in the form is read-only except the status (and switching pages).
+// Elements disabled here are marked, so unlocking only re-enables those (others stay disabled for their own reasons).
+const LOCK_KEEP = '#statusSelect, .page-tab[data-page]';
+function lockElements(root, locked) {
+  const els = [...root.querySelectorAll('input, select, textarea, button')];
+  if (root.matches?.('input, select, textarea, button')) els.push(root);
+  els.forEach(el => {
+    if (el.matches(LOCK_KEEP)) return;
+    if (locked && !el.disabled) { el.disabled = true; el.dataset.lockDisabled = '1'; }
+    else if (!locked && el.dataset.lockDisabled) { el.disabled = false; delete el.dataset.lockDisabled; }
+  });
+}
+function applyLock() {
+  const locked = !!cur && isLocked(cur);
+  const wasLocked = form.classList.contains('locked');
+  form.classList.toggle('locked', locked);
+  lockElements(form, locked);
+  if (wasLocked && !locked) { renderAutoDescToggle(); renderChart(); updateComputed(); } // their own disabled states
+  $('#lockNote').hidden = !locked;
+  $('#lockNote').textContent = locked
+    ? `🔒 This estimation is ${cur.completed ? 'Sent for Bid' : 'Submitted'} and can't be changed. Change its status to make changes.` : '';
+}
+// Parts of the form are re-drawn (pages, chart, description rows…): keep new elements locked too
+new MutationObserver(muts => {
+  if (!form.classList.contains('locked')) return;
+  muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) lockElements(n, true); }));
+}).observe(form, { childList: true, subtree: true });
 
 function fillForm() {
   // Older estimations may have a "Done by" value that isn't in the drop-down — keep it selectable
@@ -526,6 +580,7 @@ function switchPage(i) {
   renderPage();
   updateComputed();
   updateSplitButtons(); // pages may have been added / deleted
+  applyLock(); // the page's switches / buttons set their own disabled state
 }
 
 function renamePage(i = activePage) {
@@ -913,6 +968,7 @@ form.addEventListener('input', ev => {
     else if (el.name === 'status') { cur.completed = false; cur.status = el.value; }
     else cur[el.name] = el.value;
     if (el.name === 'dueDate' || el.name === 'status') updateDueInfo();
+    if (el.name === 'status') applyLock();
     if (el.name === 'clientName') updateClientFlags();
     if (el.name === 'proposalDate') updateQuotePlaceholder();
     return;
@@ -1182,6 +1238,7 @@ const dropTarget = ev => {
 };
 $('#chart').addEventListener('dragstart', ev => {
   if (ev.target.dataset?.grip === undefined) return;
+  if (isLocked(cur)) return ev.preventDefault();
   dragSheet = +ev.target.dataset.grip;
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', String(dragSheet)); // Firefox needs data to start a drag
@@ -1221,7 +1278,7 @@ $('#chart').addEventListener('dragend', () => {
 // Page tabs: double-click to rename; rename / delete buttons
 $('#pageTabs').addEventListener('dblclick', ev => {
   const i = ev.target.dataset.page;
-  if (i !== undefined) renamePage(+i);
+  if (i !== undefined && !isLocked(cur)) renamePage(+i);
 });
 $('#renamePageBtn').onclick = () => renamePage();
 $('#deletePageBtn').onclick = () => {
@@ -1253,7 +1310,9 @@ async function save(opts = {}) {
 async function doSave({ auto = false } = {}) {
   if (auto ? !form.checkValidity() : !form.reportValidity()) return false;
   if (!auto) $('#formError').hidden = true;
-  const body = saveBody();
+  // Saved as Sent for Bid / Submitted and still locked: only the status change can be sent
+  const lockedBody = () => ({ status: cur.status, completed: !!cur.completed });
+  const body = savedLocked && isLocked(cur) ? lockedBody() : saveBody();
   const sent = JSON.stringify(body);
   try {
     const saved = cur._id
@@ -1261,7 +1320,8 @@ async function doSave({ auto = false } = {}) {
       : await api(API, { method: 'POST', body: sent });
     if (auto) {
       SERVER_FIELDS.forEach(k => { if (k in saved) cur[k] = saved[k]; });
-      dirty = JSON.stringify(saveBody()) !== sent; // still dirty if edited while saving
+      dirty = JSON.stringify(body.pages ? saveBody() : lockedBody()) !== sent; // still dirty if edited while saving
+      savedLocked = isLocked(saved);
       $('#saveMsg').textContent = `Auto-saved ${new Date().toLocaleTimeString()}`;
       return true;
     }
@@ -1270,6 +1330,8 @@ async function doSave({ auto = false } = {}) {
     normalizeCur();
     renderPageTabs();
     dirty = false;
+    savedLocked = isLocked(cur);
+    applyLock();
     $('#saveMsg').textContent = `Saved ${new Date().toLocaleTimeString()}`;
     if (wasNew) { history.replaceState(null, '', `/edit/${cur._id}`); lastPath = location.pathname; }
     $('#editorTitle').textContent = estLabel(cur);
@@ -1822,10 +1884,140 @@ $('#calRows').addEventListener('click', ev => {
 });
 
 // =====================================================================
+// IMPORT EXCEL (Admin): pick a project, upload an Estimation Chart workbook, fill its pages
+// =====================================================================
+let impProject = null; // selected estimation (card details)
+let impSearchTimer = null;
+const impMsg = (text, ok = true) => { $('#impMsg').textContent = text; $('#impMsg').classList.toggle('error', !ok); };
+
+async function openImport() {
+  if (impProject) return showImportCard(impProject._id); // keep the selection when coming back
+  $('#impSearch').value = '';
+  await searchImport();
+  $('#impSearch').focus();
+}
+
+async function searchImport() {
+  const q = $('#impSearch').value.trim();
+  const list = await api(`${API}/import-search?q=${encodeURIComponent(q)}`);
+  $('#impResults').innerHTML = list.length
+    ? (q ? '' : '<p>Most recent projects — type to search all</p>') + list.map(e => `<button type="button" data-imp="${e._id}">
+        <span class="imp-no">${esc(e.jobNo) || '—'}</span><span class="imp-name">${esc(e.projectName)}</span>
+        <span class="sub">${esc(e.clientName)}</span>
+        ${e.completed ? '<span class="badge Completed">✓ Sent for Bid</span>' : `<span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>`}</button>`).join('')
+    : '<p>No projects found.</p>';
+}
+
+$('#impSearch').addEventListener('input', () => {
+  clearTimeout(impSearchTimer);
+  impSearchTimer = setTimeout(() => searchImport().catch(err => { if (!err.silent) alert(err.message); }), 250);
+});
+$('#impResults').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-imp]');
+  if (b) showImportCard(b.dataset.imp).catch(err => { if (!err.silent) alert(err.message); });
+});
+$('#impChange').onclick = () => {
+  impProject = null;
+  $('#impCard').hidden = $('#impUpload').hidden = true;
+  $('#impSearch').closest('section').hidden = false;
+  openImport().catch(err => { if (!err.silent) alert(err.message); });
+};
+
+async function showImportCard(id) {
+  const e = impProject = await api(`${API}/${id}/import-card`);
+  $('#impSearch').closest('section').hidden = true;
+  $('#impCard').hidden = $('#impUpload').hidden = false;
+  $('#impTitle').textContent = estLabel(e);
+  $('#impOpen').href = `/edit/${e._id}`;
+  const due = dueInfo(e.dueDate, e.status, e.completed);
+  const field = (label, value) => `<div><span class="sub">${label}</span><strong>${value}</strong></div>`;
+  $('#impDetails').innerHTML = [
+    field('No.', esc(e.jobNo) || '—'),
+    field('Project', esc(e.projectName)),
+    field('Client', `${e.priorityClient ? '<span class="star" title="Priority client">★</span> ' : ''}${esc(e.clientName)}`),
+    field('Status', e.completed ? '<span class="badge Completed">✓ Sent for Bid</span>' : `<span class="badge ${statusClass(e.status)}">${esc(e.status)}</span>`),
+    field('Date', fmtDate(e.date)),
+    field('Due date', `${fmtDate(e.dueDate)}${due && !e.completed ? ` <span class="due ${due.cls}">${due.text}</span>` : ''}`),
+    field('Done by', esc(e.doneBy) || '—'),
+    field('Contact', esc(e.contactPerson) || '—'),
+    field('Chart pages', e.pageNames.length ? esc(e.pageNames.join(', ')) : '—'),
+    field('Sheets', fmt(e.sheetCount)),
+    field('Total hours', fmt(e.totalHours)),
+    field('Tonnage', `${fmt(e.approxTonnage)} t`),
+    field('No. of drawings', fmt(e.totalDwgs)),
+    field('Last changed', `${fmtDate(e.updatedAt)}${e.updatedBy ? ` by ${esc(e.updatedBy)}` : ''}`),
+  ].join('');
+  const locked = isLocked(e);
+  $('#impLocked').hidden = !locked;
+  $('#impLocked').textContent = locked ? `🔒 This project is ${e.completed ? 'Sent for Bid' : 'Submitted'} — change its status before importing.` : '';
+  $('#impFile').value = '';
+  $('#impPreview').innerHTML = '';
+  $('#impActions').hidden = true;
+  impMsg('');
+}
+
+// Read the chosen file and show what would be filled (nothing is saved yet)
+async function previewImport() {
+  const file = $('#impFile').files[0];
+  $('#impActions').hidden = true;
+  $('#impPreview').innerHTML = '';
+  if (!file || !impProject) return impMsg('');
+  impMsg('Reading the file…');
+  try {
+    const r = await api(`${API}/${impProject._id}/import-preview?mode=${$('#impMode').value}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+    const tot = k => r.summary.reduce((a, p) => a + p[k], 0);
+    $('#impPreview').innerHTML = `
+      ${r.warnings.length ? `<div class="imp-warn"><strong>Please check:</strong><ul>${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Page (worksheet)</th><th class="num">Sheets</th><th class="num">Total qty</th><th class="num">Hours</th>
+          <th class="num">Tonnage</th><th class="num">Drawings</th><th class="num">Struct. lines</th><th class="num">Misc. lines</th></tr></thead>
+        <tbody>${r.summary.map(p => `<tr><td><strong>${esc(p.name)}</strong></td><td class="num">${p.sheets}</td><td class="num">${fmt(p.totalCount)}</td>
+          <td class="num">${fmt(p.totalHours)}</td><td class="num">${fmt(p.tonnage)}</td><td class="num">${fmt(p.totalDwgs)}</td>
+          <td class="num">${p.structLines}</td><td class="num">${p.miscLines}</td></tr>`).join('')}
+          ${r.summary.length > 1 ? `<tr><td><strong>Total</strong></td><td class="num">${tot('sheets')}</td><td class="num">${fmt(tot('totalCount'))}</td>
+            <td class="num"><strong>${fmt(tot('totalHours'))}</strong></td><td class="num"><strong>${fmt(tot('tonnage'))}</strong></td>
+            <td class="num">${fmt(tot('totalDwgs'))}</td><td></td><td></td></tr>` : ''}</tbody>
+      </table></div>
+      <p class="hint">File: ${esc(r.header.project) || '—'} · Client: ${esc(r.header.client) || '—'} · Done by: ${esc(r.header.doneBy) || '—'}
+        ${r.exclusions.length ? ` · ${r.exclusions.length} exclusion(s) will replace the project's Specific Exclusions` : ''}</p>`;
+    $('#impActions').hidden = isLocked(impProject);
+    impMsg(r.mode === 'replace' && r.existingPages
+      ? `Nothing saved yet. Filling will REPLACE the project's ${r.existingPages} existing page(s) with the ${r.summary.length} page(s) above.`
+      : `Nothing saved yet. Filling will add ${r.summary.length} page(s) to the project.`);
+  } catch (err) {
+    if (!err.silent) impMsg(err.message, false);
+  }
+}
+$('#impFile').onchange = previewImport;
+$('#impMode').onchange = previewImport;
+
+$('#impFillBtn').onclick = async ev => {
+  const file = $('#impFile').files[0];
+  if (!file || !impProject) return;
+  const replace = $('#impMode').value === 'replace' && impProject.pageNames.length;
+  if (!confirm(replace ? `Replace the chart pages of ${estLabel(impProject)} with the file's data?` : `Fill ${estLabel(impProject)} with the file's data?`)) return;
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  impMsg('Saving…');
+  try {
+    const r = await api(`${API}/${impProject._id}/import-excel?mode=${$('#impMode').value}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+    await showImportCard(impProject._id);
+    impMsg(`Done — the project now has ${r.pageCount} page(s), ${fmt(r.totalHours)} hours, ${fmt(r.approxTonnage)} t. Use “Open project” to check it.`);
+  } catch (err) {
+    if (!err.silent) impMsg(err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// =====================================================================
 // BACKUPS (Admin)
 // =====================================================================
 const BACKUP_TYPES = {
   auto: ['Automatic', 'Weekly backup (Sunday 6 AM)'],
+  hourly: ['Hourly', 'Estimations only, every hour — restoring it replaces just the estimations'],
   manual: ['Manual', 'Made with “Back up now”'],
   'pre-restore': ['Before restore', 'The data as it was just before a restore — restore this to undo it'],
   uploaded: ['Uploaded', 'A backup file that was restored from this computer'],
@@ -1840,10 +2032,14 @@ async function loadBackups() {
     <div><span class="sub">Automatic backup</span><strong>${esc(r.schedule)}</strong></div>
     <div><span class="sub">Next automatic backup</span><strong>${fmtDateTime(r.nextRun)}</strong></div>
     <div><span class="sub">Last automatic backup</span><strong>${lastAuto ? fmtDateTime(lastAuto.createdAt) : 'None yet'}</strong></div>
-    <div><span class="sub">Kept</span><strong>Last ${r.keepAuto} automatic · manual ones until deleted</strong></div>
+    <div><span class="sub">Hourly backup (estimations)</span><strong>Every hour · next ${fmtDateTime(r.nextHourly)}</strong></div>
+    <div><span class="sub">Kept</span><strong>Last ${r.keepAuto} automatic · hourly for ${r.hourlyKeepDays} days · manual ones until deleted</strong></div>
     <div class="wide"><span class="sub">Saved in (on the server)</span><code>${esc(r.dir)}</code></div>
-    ${r.lastAutoError ? `<div class="wide error">Last automatic backup failed (${fmtDateTime(r.lastAutoError.at)}): ${esc(r.lastAutoError.message)}</div>` : ''}`;
-  $('#backupRows').innerHTML = r.items.map(b => {
+    ${r.lastAutoError ? `<div class="wide error">Last automatic backup failed (${fmtDateTime(r.lastAutoError.at)}): ${esc(r.lastAutoError.message)}</div>` : ''}
+    ${r.lastHourlyError ? `<div class="wide error">Last hourly backup failed (${fmtDateTime(r.lastHourlyError.at)}): ${esc(r.lastHourlyError.message)}</div>` : ''}`;
+  const show = $('#backupFilter').value;
+  const items = r.items.filter(b => !show || (show === 'hourly' ? b.type === 'hourly' : b.type !== 'hourly'));
+  $('#backupRows').innerHTML = items.map(b => {
     const [label, tip] = BACKUP_TYPES[b.type] || [b.type, ''];
     const n = encodeURIComponent(b.name);
     return `<tr>
@@ -1852,19 +2048,20 @@ async function loadBackups() {
       <td class="num">${fmtSize(b.size)}</td>
       <td class="actions-cell">
         <a class="btn small" href="/api/backups/${n}/download" download title="Save this backup file on this computer">Download</a>
-        <button type="button" class="btn small" data-restore="${esc(b.name)}" data-when="${esc(fmtDateTime(b.createdAt))}">Restore</button>
+        <button type="button" class="btn small" data-restore="${esc(b.name)}" data-when="${esc(fmtDateTime(b.createdAt))}" data-type="${esc(b.type)}">Restore</button>
         <button type="button" class="btn small danger icon-btn" data-del-backup="${esc(b.name)}" title="Delete this backup" aria-label="Delete">${TRASH_ICON}</button>
       </td></tr>`;
   }).join('');
-  $('#backupEmpty').hidden = r.items.length > 0;
+  $('#backupEmpty').hidden = items.length > 0;
 }
+$('#backupFilter').onchange = () => loadBackups().catch(err => backupMsg(err.message, false));
 
 // Restoring replaces everything: ask the admin to type RESTORE
-const confirmRestore = what => prompt(`Restore ${what}?\n\nAll estimations, clients, users and notifications will be REPLACED with the backup's. ` +
+const confirmRestore = (what, hourly = false) => prompt(`Restore ${what}?\n\n${hourly ? 'All estimations' : 'All estimations, clients, users and notifications'} will be REPLACED with the backup's. ` +
   'A backup of the current data is made first, so this can be undone.\n\nType RESTORE to continue.')?.trim().toUpperCase() === 'RESTORE';
 
 function restoreDone(r) {
-  alert(`Restore complete: ${r.counts.estimations} estimations, ${r.counts.clients} clients, ${r.counts.users} users, ${r.counts.notifications} notifications.\n\n` +
+  alert(`Restore complete: ${Object.entries(r.counts).map(([k, v]) => `${v} ${k}`).join(', ')}.\n\n` +
     `The data from before the restore was saved as "${r.safetyBackup}". The page will now reload.`);
   location.reload();
 }
@@ -1886,7 +2083,7 @@ $('#backupRows').addEventListener('click', async ev => {
   const restoreBtn = ev.target.closest('[data-restore]');
   const delBtn = ev.target.closest('[data-del-backup]');
   if (restoreBtn) {
-    if (!confirmRestore(`the backup from ${restoreBtn.dataset.when}`)) return;
+    if (!confirmRestore(`the backup from ${restoreBtn.dataset.when}`, restoreBtn.dataset.type === 'hourly')) return;
     await withBackupBusy(restoreBtn, 'Restoring… please wait', async () => {
       restoreDone(await api(`/api/backups/${encodeURIComponent(restoreBtn.dataset.restore)}/restore`, { method: 'POST' }));
     });
@@ -1916,7 +2113,7 @@ async function route() {
   if (!me) return;
   let path = location.pathname;
   const is = p => path === p || path.startsWith(`${p}/`);
-  if (((is('/users') || is('/log') || is('/backups')) && !can('admin')) || (is('/notifications') && !can('team_leader'))) {
+  if (((is('/users') || is('/log') || is('/backups') || is('/import')) && !can('admin')) || (is('/notifications') && !can('team_leader'))) {
     history.replaceState(null, '', '/'); path = '/'; lastPath = path;
   }
   const editing = is('/new') || path.startsWith('/edit/');
@@ -1927,7 +2124,10 @@ async function route() {
   const completed = is('/completed');
   const calendar = is('/calendar');
   const backups = is('/backups');
-  $('#listView').hidden = editing || clients || users || log || notif || completed || calendar || backups;
+  const importing = is('/import');
+  $('#listView').hidden = editing || clients || users || log || notif || completed || calendar || backups || importing;
+  $('#importView').hidden = !importing;
+  $('#navImport').classList.toggle('active', importing);
   $('#backupsView').hidden = !backups;
   $('#navBackups').classList.toggle('active', backups);
   $('#completedView').hidden = !completed;
@@ -1940,7 +2140,7 @@ async function route() {
   $('#logView').hidden = !log;
   $('#notifView').hidden = !notif;
   $('#newBtn').hidden = editing;
-  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif && !completed && !calendar && !backups);
+  $('#navEst').classList.toggle('active', !clients && !users && !log && !notif && !completed && !calendar && !backups && !importing);
   $('#navClients').classList.toggle('active', clients);
   $('#navNotif').classList.toggle('active', notif);
   $('#navUsers').classList.toggle('active', users);
@@ -1955,6 +2155,7 @@ async function route() {
     else if (completed) await loadCompleted(1);
     else if (calendar) await loadCalendar();
     else if (backups) await loadBackups();
+    else if (importing) await openImport();
     else { await loadList(); refreshNotifCount(); }
   } catch (err) {
     if (err.silent) return;
