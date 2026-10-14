@@ -427,8 +427,6 @@ body.signed-out > header, body.signed-out > main { display: none !important; }
 .split-btn { position: relative; display: inline-flex; }
 .split-btn > .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .split-btn .split-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; padding-left: 8px; padding-right: 8px; }
-.split-btn.single .split-caret { display: none; }
-.split-btn.single > .btn:first-child { border-radius: 6px; }
 .split-menu { min-width: 280px; white-space: nowrap; }
 body.auth-off .user-menu, body.auth-off #navUsers { display: none !important; }
 

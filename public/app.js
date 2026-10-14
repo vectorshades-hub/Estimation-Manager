@@ -1325,12 +1325,10 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSplitMenus(); });
 
-// The "separate files" option only makes sense with more than one chart page
+// The ▾ menus are always shown (a one-page chart gives a zip with one file); they need a saved estimation
 function updateSplitButtons() {
-  const several = (cur?.pages?.length || 0) > 1;
-  ['#excelSplit', '#proposalSplit'].forEach(s => $(s).classList.toggle('single', !several));
   document.querySelectorAll('.split-caret').forEach(b => { b.disabled = !cur?._id; });
-  if (!several) closeSplitMenus();
+  if (!cur?._id) closeSplitMenus();
 }
 document.addEventListener('keydown', ev => {
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 's' && !$('#editorView').hidden) { ev.preventDefault(); save(); }
