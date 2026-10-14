@@ -197,8 +197,8 @@ table.chart { border-collapse: collapse; font-size: 13px; }
 .chart td input:focus { outline: 2px solid var(--primary); outline-offset: -2px; background: #fff; }
 .chart td.rate { white-space: nowrap; padding: 0 6px; color: var(--muted); background: #fafbfc; }
 .chart td.rate input { width: 46px; background: transparent; border-bottom: 1px dashed #c5ccd8; height: 22px; }
-.chart th.sheet { position: relative; padding: 2px 18px 2px 2px; }
-.chart .sheet-name { width: 92px; border: 1px solid var(--border); border-radius: 4px; padding: 4px; font-size: 12px; text-align: center; }
+.chart th.sheet { position: relative; padding: 2px 18px 2px 14px; }
+.chart .sheet-name { width: 80px; border: 1px solid var(--border); border-radius: 4px; padding: 4px; font-size: 12px; text-align: center; }
 .chart th.sheet .x { position: absolute; top: 50%; right: 2px; transform: translateY(-50%); }
 .chart td.tot, .chart td.hrs, .chart td.num { padding: 0 8px; text-align: right; min-width: 70px; font-variant-numeric: tabular-nums; }
 .chart td.hrs { background: var(--xl-green); font-weight: 600; }
@@ -467,8 +467,8 @@ dialog#bulkDialog::backdrop { background: rgba(15, 25, 45, .45); }
 .desc-side .desc td { padding: 2px 3px; }
 @media (max-width: 700px) { .desc-side { min-width: 0; } }
 /* keep the chart compact so the description lists fit beside it */
-.chart-layout .chart th.sheet { padding: 2px 16px 2px 2px; }
-.chart-layout .chart .sheet-name { width: 78px; }
+.chart-layout .chart th.sheet { padding: 2px 16px 2px 14px; }
+.chart-layout .chart .sheet-name { width: 66px; }
 .chart-layout .chart td input.cnt { min-width: 0; width: 100%; }
 .chart-layout .chart th.sheet, .chart-layout .chart td:has(> input.cnt) { width: 96px; max-width: 96px; }
 .desc-side { flex: 1 1 380px; min-width: 380px; }
@@ -501,6 +501,18 @@ dialog#bulkDialog::backdrop { background: rgba(15, 25, 45, .45); }
 .chart tbody th.sticky.cell-focus { background: #ffd54a; box-shadow: inset 4px 0 0 #c27c00; }
 .chart thead th.sheet.cell-focus { background: #dbe7ff; box-shadow: inset 0 -3px 0 var(--primary); }
 .chart thead th.sheet.cell-focus .sheet-name { border-color: var(--primary); color: var(--primary); font-weight: 700; background: #fff; }
+
+/* Sheet column titles: click to select (Add sheet column inserts after it), drag the handle to move the column */
+.chart th.sheet .grip { position: absolute; left: 1px; top: 50%; transform: translateY(-50%); width: 12px; text-align: center;
+  font-size: 12px; letter-spacing: -3px; color: var(--muted); cursor: grab; user-select: none; }
+.chart th.sheet .grip:hover { color: var(--primary); }
+.chart th.sheet .grip:active { cursor: grabbing; }
+.chart thead th.sheet.sheet-selected { background: var(--primary); box-shadow: none; }
+.chart thead th.sheet.sheet-selected .grip, .chart thead th.sheet.sheet-selected .x { color: #fff; }
+.chart thead th.sheet.sheet-selected .sheet-name { border-color: var(--primary); }
+.chart thead th.sheet.dragging { opacity: .45; }
+.chart thead th.sheet.drop-before { box-shadow: inset 3px 0 0 var(--primary); }
+.chart thead th.sheet.drop-after { box-shadow: inset -3px 0 0 var(--primary); }
 @media (max-width: 1000px) {
   .chart-layout { flex-wrap: wrap; }
   .chart-layout .chart-wrap { flex-basis: 100%; max-width: 100%; }
@@ -567,8 +579,8 @@ dialog#bulkDialog::backdrop { background: rgba(15, 25, 45, .45); }
 .chart-card .page-bar { flex-wrap: nowrap; }
 .chart-card .page-tabs { min-width: 0; overflow-x: auto; flex-wrap: nowrap; }
 .chart-card .page-bar .btn.small { white-space: nowrap; }
-.chart-card .chart th.sheet { padding: 2px 16px 2px 2px; }
-.chart-card .chart .sheet-name { width: 78px; }
+.chart-card .chart th.sheet { padding: 2px 16px 2px 14px; }
+.chart-card .chart .sheet-name { width: 66px; }
 .chart-card .chart td input.cnt { min-width: 0; width: 100%; }
 .chart-card .chart th.sheet, .chart-card .chart td:has(> input.cnt) { width: 96px; max-width: 96px; }
 .desc-col table.desc input:not([type=checkbox]) { padding: 5px 7px; font-size: 13px; }

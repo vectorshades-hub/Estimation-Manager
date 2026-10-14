@@ -22,7 +22,7 @@ Each estimation can be downloaded as an Excel "ESTIMATION CHART" with the same l
 - **Details:** No. (auto-suggested as `YY-NNN`, e.g. `26-150`), date, project name, client, done by, status, due date, contact person/email, internal notes.
 - **Submission details:** scope, complexity, deliverables, coordination needed, duration (weeks), tonnage for client, assumptions, remark.
 - **SharePoint links:** one or more folder links for the submission documents (shown as a *Folder* button in the list).
-- **Estimation chart:** up to 21 drawing sheet columns (Excel columns B–V) × 26 item rows (Beam 1/1 … Misc .in Hrs).
+- **Estimation chart:** up to 100 drawing sheet columns (Excel columns B–V as in the sample; beyond 21 the TOTAL/HRS and description columns shift right) × 26 item rows (Beam 1/1 … Misc .in Hrs).
   Each row's hours = total qty × minutes ÷ divisor. Minutes and divisor can be changed per estimation.
 - **No. of drawings:** calculated per type (COL, BEAM, BRACE, …). Any type can be overridden; AB / LINTEL / ERE are manual.
 - **Tonnage expected** = total hours ÷ hours per tonnage (default 2.5). Time per drawing = total hours ÷ total drawings.

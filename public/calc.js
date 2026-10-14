@@ -3,7 +3,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.EstCalc = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
-  const MAX_SHEETS = 21; // Excel columns B..V
+  const MAX_SHEETS = 100; // Excel columns B..CW (the template has 21, B..V; the export shifts the columns after them right)
   const DEFAULT_HRS_PER_TON = 2.5;
   const LESS_VALUE_HOURS = 175; // non-priority client + fewer hours than this = "less value job"
 

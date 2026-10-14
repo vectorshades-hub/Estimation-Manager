@@ -522,6 +522,7 @@ function renderPage() {
 
 function switchPage(i) {
   activePage = i;
+  selectedSheet = null;
   renderPage();
   updateComputed();
   updateSplitButtons(); // pages may have been added / deleted
@@ -539,13 +540,17 @@ function renamePage(i = activePage) {
 }
 
 // ---------- Chart grid ----------
+let selectedSheet = null; // sheet column whose title was clicked: "Add sheet column" inserts after it
+
 function renderChart() {
   gridSel = null; // cells are rebuilt: a block selection would point at the wrong cells
   const sheets = pg().sheets;
+  if (selectedSheet !== null && selectedSheet >= sheets.length) selectedSheet = null;
   const head = `<thead><tr>
       <th class="sticky">SHEET NO.</th>
       <th class="rate">Rate<div class="sub">min / div</div></th>
-      ${sheets.map((s, i) => `<th class="sheet">
+      ${sheets.map((s, i) => `<th class="sheet${i === selectedSheet ? ' sheet-selected' : ''}" data-col="${i}">
+          <span class="grip" draggable="true" data-grip="${i}" title="Drag to move this column">⋮⋮</span>
           <input class="sheet-name" data-sheet="${i}" value="${esc(s)}" placeholder="Sheet ${i + 1}" />
           <button type="button" class="x" data-del-sheet="${i}" title="Remove column">×</button></th>`).join('')}
       <th class="num tot">TOTAL</th><th class="num hrs">HRS REQ'D</th></tr></thead>`;
@@ -1105,6 +1110,8 @@ form.addEventListener('click', ev => {
     if (used && !confirm(`Remove column "${pg().sheets[i] || 'Sheet ' + (i + 1)}" and its quantities?`)) return;
     pg().sheets.splice(i, 1);
     pg().items.forEach(it => it.counts.splice(i, 1));
+    if (selectedSheet === i) selectedSheet = null;
+    else if (selectedSheet > i) selectedSheet--;
     dropAutoColumn(pg(), i); // generated lines are keyed by column position
     chartChanged();
     dirty = true;
@@ -1136,14 +1143,80 @@ $('#addLinkBtn').onclick = () => {
   $(`#linkRows input[data-link="${cur.links.length - 1}"][data-f="url"]`).focus();
 };
 
+// Clicking a sheet column title selects that column; clicking a quantity cell or anywhere else clears it
+function selectSheet(i) {
+  selectedSheet = i;
+  $('#chart').querySelectorAll('thead th.sheet').forEach(th => th.classList.toggle('sheet-selected', +th.dataset.col === i));
+}
+document.addEventListener('mousedown', ev => {
+  if (ev.target.closest('#addSheetBtn')) return;
+  const th = ev.target.closest('#chart thead th.sheet');
+  if (th && !ev.target.closest('.x')) selectSheet(+th.dataset.col);
+  else if (selectedSheet !== null) selectSheet(null);
+});
+$('#chart').addEventListener('focusin', ev => { // Tab onto a title selects its column too
+  if (ev.target.dataset.sheet !== undefined) selectSheet(+ev.target.dataset.sheet);
+});
+
+// Add sheet column: right after the selected column, otherwise at the end
 $('#addSheetBtn').onclick = () => {
   if (pg().sheets.length >= MAX_SHEETS) return;
-  pg().sheets.push('');
-  pg().items.forEach(it => it.counts.push(0));
+  const at = selectedSheet !== null ? selectedSheet + 1 : pg().sheets.length;
+  pg().sheets.splice(at, 0, '');
+  pg().items.forEach(it => it.counts.splice(at, 0, 0));
   dirty = true;
+  selectedSheet = at;
+  chartChanged();
   renderChart(); updateComputed();
-  $(`#chart input[data-sheet="${pg().sheets.length - 1}"]`).focus();
+  $(`#chart input[data-sheet="${at}"]`).focus();
 };
+
+// Drag a column by its ⋮⋮ handle to move it (with its quantities) to another position
+let dragSheet = null;
+const clearDropMarks = () => $('#chart').querySelectorAll('.drop-before, .drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+const dropTarget = ev => {
+  const th = ev.target.closest?.('#chart thead th.sheet');
+  if (!th) return null;
+  const r = th.getBoundingClientRect();
+  return { th, at: +th.dataset.col + (ev.clientX > r.left + r.width / 2 ? 1 : 0), after: ev.clientX > r.left + r.width / 2 };
+};
+$('#chart').addEventListener('dragstart', ev => {
+  if (ev.target.dataset?.grip === undefined) return;
+  dragSheet = +ev.target.dataset.grip;
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', String(dragSheet)); // Firefox needs data to start a drag
+  const th = ev.target.closest('th');
+  ev.dataTransfer.setDragImage(th, ev.offsetX, ev.offsetY);
+  th.classList.add('dragging');
+});
+$('#chart').addEventListener('dragover', ev => {
+  if (dragSheet === null) return;
+  const t = dropTarget(ev);
+  clearDropMarks();
+  if (!t) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  t.th.classList.add(t.after ? 'drop-after' : 'drop-before');
+});
+$('#chart').addEventListener('drop', ev => {
+  const t = dragSheet !== null && dropTarget(ev);
+  if (!t) return;
+  ev.preventDefault();
+  const from = dragSheet, to = t.at > from ? t.at - 1 : t.at;
+  if (to === from) return;
+  const p = pg();
+  p.sheets.splice(to, 0, p.sheets.splice(from, 1)[0]);
+  p.items.forEach(it => it.counts.splice(to, 0, it.counts.splice(from, 1)[0]));
+  selectedSheet = to;
+  dirty = true;
+  chartChanged();
+  renderChart(); updateComputed();
+});
+$('#chart').addEventListener('dragend', () => {
+  dragSheet = null;
+  clearDropMarks();
+  $('#chart').querySelector('th.dragging')?.classList.remove('dragging');
+});
 
 // Page tabs: double-click to rename; rename / delete buttons
 $('#pageTabs').addEventListener('dblclick', ev => {
